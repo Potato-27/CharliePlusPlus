@@ -1,6 +1,10 @@
 import nodes.*;
 import java.util.List;
 
+import environment.Environment;
+import environment.Type;
+
+
 public class TypeResolver {
     public Environment environment;
     private final List<Stmt> programAst;
@@ -15,7 +19,6 @@ public class TypeResolver {
         for (Stmt node : programAst){
             resolveStatement(node);
         }
-
     }
 
     // checks if the node argument is a node that needs to be resolved (i.e. VarDeclNode) and calls resolveExpression() and adds the key and associated value top the current environment
@@ -24,6 +27,27 @@ public class TypeResolver {
             VarDeclNode varDeclNode = (VarDeclNode) node;
 
             environment.define(varDeclNode.identifier.lexeme, resolveExpression(varDeclNode.initializer));
+        } else if (node instanceof BlockNode){
+            BlockNode blockNode = (BlockNode) node;
+            Environment previousEnv = this.environment;
+            this.environment = new Environment(previousEnv);
+            for (Stmt stmt : blockNode.block){
+                resolveStatement(stmt);
+            }
+            blockNode.localEnv = this.environment;
+            this.environment = previousEnv;
+        } else if (node instanceof FunDeclNode){
+            FunDeclNode funDeclNode = (FunDeclNode) node;
+            resolveStatement(funDeclNode.block);
+        } else if (node instanceof IfNode){
+            IfNode ifNode = (IfNode) node;
+            resolveStatement(ifNode.trueStatement);
+            if (ifNode.falseStatement != null){
+                resolveStatement(ifNode.falseStatement);
+            }
+        } else if (node instanceof WhileNode){
+            WhileNode whileNode = (WhileNode) node;
+            resolveStatement(whileNode.trueStatement);
         }
     }
 

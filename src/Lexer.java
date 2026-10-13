@@ -44,8 +44,18 @@ public class Lexer{
             case '-' -> addToken(TokenType.MINUS);
             case '*' -> addToken(TokenType.STAR);
             case ';' -> addToken(TokenType.SEMICOLON);
-            case '/' -> addToken(TokenType.SLASH);
             case '%' -> addToken(TokenType.MOD);
+            case '/' -> {
+                if (peek() == '/') {
+                    advance(); 
+                    while (peek() != '\n' && peek() != '\0') {
+                        advance();
+                    }
+                } else {
+                    addToken(TokenType.SLASH);
+                }
+            }
+            
             
             // special characters
             case '<' -> comparisonHandler();
@@ -68,6 +78,10 @@ public class Lexer{
 
     // specific handler methods for strings, identifiers and keyword identification, numerical values, and multiple-character comparisons like == or !=
     private void stringHandler(){
+        if (current + 1 >= source.length()){
+            System.err.println("Line " + line + ": ClosingQuotationError '\"'");
+            return;
+        }
         char c = advance();
         while (c != '"'){
             if (current + 1 <= source.length()){

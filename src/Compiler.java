@@ -41,7 +41,7 @@ public class Compiler {
             resolver.resolve();
 
             CodeGenerator generator = new CodeGenerator(parsedCode, resolver.environment);
-            generator.generate();
+            generator.generate(); 
 
         } catch (IOException e) {
             System.out.println("Error reading the file: " + e.getMessage());

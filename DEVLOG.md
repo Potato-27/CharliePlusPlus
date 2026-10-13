@@ -17,3 +17,19 @@
 ### the next steps
 1. sort out the local environment architecture for variable names for when inside functions or other classes.
 2. Learn, figure out, and implement the proper needed architecture for variable inferencing for parameters when declaring functions.
+
+
+most recent changes: added the environment resolution of global and local spaces (not including classes yet), added comments, fixed quotation issue,
+
+## Entry 2: bug fixing, quality of life, scope management (10/12/2026)
+
+### what's working and done
+- **Fixed the quotation issue:** mentioned previously in the lexer, checks first whether it is the end of the file before handling strings.
+- **Added comments:** can now use `//` to comment code in the .chpp file, the lexer completely ignores everything past it until the newline.
+- **Global and local scoping:** `TypeResolver.java` now is able to create sub environments for every separate block (as determined by curly braces (`{}`)) for the local scoping and instantiation of variables. `BlockNode` now stores the local environments thyemselves.
+- **Bolding:** I learned how to use bolded stuff in the devlog very exciting
+
+### the next steps
+- Learn, figure out, and implement the proper needed architecture for variable inferencing for parameters when declaring functions. This is something more to work towards, and it will come with implementing return statements.
+- More immediate, smaller goal: add the boolean operators and and or (`&` and `|`)
+- Implement parenthesis into the order of operations for arithmetic and boolean expressions.

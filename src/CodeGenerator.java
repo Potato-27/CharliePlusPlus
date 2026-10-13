@@ -1,5 +1,9 @@
 import nodes.*;
 import java.util.List;
+
+import environment.Environment;
+import environment.Type;
+
 import java.io.IOException;
 import java.io.FileWriter;
 import java.util.ArrayList;
@@ -8,12 +12,12 @@ import java.util.ArrayList;
 public class CodeGenerator {
     public StringBuilder javaCode = null;
     private final List<Stmt> programAst;
-    private final Environment globalEnv;
+    private Environment currentEnv; 
 
     public CodeGenerator(List<Stmt> programAst, Environment globalEnv){
         javaCode = new StringBuilder();
         this.programAst = programAst;
-        this.globalEnv = globalEnv;
+        this.currentEnv = globalEnv;
     }
 
     // public method called on the instantiated object that manages the final generation of the java file, iterating through each node from the parser and calling the according helper method
@@ -91,7 +95,7 @@ public class CodeGenerator {
             buffer.append("\tpublic static int " + node.identifier.lexeme + ";\n");
         } else{
             String expressionStr = generateExpression(node.initializer);
-            String javaType = typeString(globalEnv.lookup(node.identifier.lexeme));
+            String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
 
             buffer.append("\tpublic static " + javaType + " " + node.identifier.lexeme + " = " + expressionStr + ";\n");
         }
@@ -103,7 +107,7 @@ public class CodeGenerator {
             buffer.append("\tint " + node.identifier.lexeme + ";\n");
         } else{
             String expressionStr = generateExpression(node.initializer);
-            String javaType = typeString(globalEnv.lookup(node.identifier.lexeme));
+            String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
 
             buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = " + expressionStr + ";\n");
             
@@ -114,12 +118,8 @@ public class CodeGenerator {
     public void generateTopLevelFunction(FunDeclNode node){
         // if main method
         if (node.name.lexeme.equals("main")){
-            javaCode.append("\tpublic static void main(String[] args){\n");
-            for (Stmt localNode : node.block.block){
-                generateStatement(localNode, javaCode, false);
-            }
-
-            javaCode.append("\t}\n\n");
+            javaCode.append("\tpublic static void main(String[] args)");
+            generateStatement(node.block, javaCode, false);
         } else {
             javaCode.append("public static void " + node.name.lexeme + "(");
 
@@ -129,13 +129,8 @@ public class CodeGenerator {
                     javaCode.append(", ");
                 }
             }
-            javaCode.append("){\n");
-            for (Stmt localNode : node.block.block){
-                generateStatement(localNode, javaCode, false);
-            }
-
-
-            javaCode.append("\t}\n\n");
+            javaCode.append(")");
+            generateStatement(node.block, javaCode, false);
         }
     }
 
@@ -149,13 +144,9 @@ public class CodeGenerator {
                 buffer.append(", ");
             }
         }
-        buffer.append("){\n");
+        buffer.append(")");
 
-        for (Stmt localNode : node.block.block){
-            generateStatement(localNode, buffer, false);
-        }
-
-        buffer.append("\t}\n\n");
+        generateStatement(node.block, buffer, false);
     }
 
     // method that handles the declaration of classes, creating a new StringBuilder for a separate java class file and writes its own file separate from Main.java
@@ -200,39 +191,45 @@ public class CodeGenerator {
             String conditionStr = generateExpression(ifNode.condition);
             
             if (isElse){
-                buffer.append("if (" + conditionStr + ") {\n");
+                buffer.append("if (" + conditionStr + ")");
             } else{
-                buffer.append("\t\tif (" + conditionStr + ") {\n");
+                buffer.append("\t\tif (" + conditionStr + ")");
             }
-            for (Stmt s : ((BlockNode)ifNode.trueStatement).block) {
-                generateStatement(s, buffer, false);
-            }
-            buffer.append("\t\t}");
+            generateStatement(ifNode.trueStatement, buffer, false);
 
             if (ifNode.falseStatement != null){
                 if (ifNode.falseStatement instanceof IfNode){
                     buffer.append(" else ");
                     generateStatement(ifNode.falseStatement, buffer, true);
                 } else if (ifNode.falseStatement instanceof BlockNode){
-                    buffer.append(" else {\n");
-                    for (Stmt s : ((BlockNode)ifNode.falseStatement).block) {
-                        generateStatement(s, buffer, false);
-                    }
-                    buffer.append("\t\t}\n");
+                    buffer.append(" else ");
+                    generateStatement(ifNode.falseStatement, buffer, false);
                 }
             } else {
                 buffer.append("\n");
             }
 
         } else if (node instanceof WhileNode){
-            WhileNode ifNode = (WhileNode) node;
+            WhileNode whileNode = (WhileNode) node;
 
-            String conditionStr = generateExpression(ifNode.condition);
-            buffer.append("\t\twhile (" + conditionStr + ") {\n");
-            for (Stmt s : ((BlockNode)ifNode.trueStatement).block) {
+            String conditionStr = generateExpression(whileNode.condition);
+            buffer.append("\t\twhile (" + conditionStr + ")");
+            generateStatement(whileNode.trueStatement, buffer, false);
+        } else if (node instanceof BlockNode){
+            BlockNode blockNode = (BlockNode) node;
+
+            Environment previousEnv = currentEnv;
+            if (blockNode.localEnv != null) {
+                currentEnv = blockNode.localEnv;
+            } else {
+                currentEnv = new Environment(previousEnv);
+            }
+            buffer.append(" {\n");
+            for (Stmt s : blockNode.block){
                 generateStatement(s, buffer, false);
             }
-            buffer.append("\t\t}\n");
+            buffer.append("}\n");
+            currentEnv = previousEnv;
         }
     }
 
