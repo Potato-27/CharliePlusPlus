@@ -55,7 +55,8 @@ public class Lexer{
                     addToken(TokenType.SLASH);
                 }
             }
-            
+            case '|' -> tokens.add(new Token("||", TokenType.OR, null, line));
+            case '&' -> tokens.add(new Token("&&", TokenType.AND, null, line));
             
             // special characters
             case '<' -> comparisonHandler();

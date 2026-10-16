@@ -160,22 +160,10 @@ public class Parser {
     // checks whether the current token is a while or if keyword and accordingly returns a WhileNode or IfNode, otherwise calls expression() and returns an ExpressionStatementNode
     public Stmt statement(){
         if (match(TokenType.IF)){
-            Boolean hasParen;
             Stmt ifBlock = null;
             Stmt elseBlock = null;
 
-            // optional parenthesis logic
-            if (match(TokenType.LEFT_PAREN)){
-                hasParen = true;
-            } else {
-                hasParen = false;
-            }
             Expr condition = expression();
-
-            if (hasParen && !match(TokenType.RIGHT_PAREN)){
-                System.err.println("Temp error message statement() (IF)");
-                return null;
-            } 
 
             if (match(TokenType.LEFT_BRACE)){
                 ifBlock = block();
@@ -198,20 +186,9 @@ public class Parser {
             return new IfNode(condition, ifBlock, elseBlock);
 
         } else if (match(TokenType.WHILE)){
-            Boolean hasParen;
             Stmt block = null;
 
-            if (match(TokenType.LEFT_PAREN)){
-                hasParen = true;
-            } else {
-                hasParen = false;
-            }
             Expr condition = expression();
-
-            if (hasParen && !match(TokenType.RIGHT_PAREN)){
-                System.err.println("Temp error message statement() (WHILE)");
-                return null;
-            } 
 
             if (match(TokenType.LEFT_BRACE)){
                 block = block();
@@ -242,7 +219,7 @@ public class Parser {
 
     // parses expressions for variable assignment, returning an AssignmentNode, otherwise returns comparison()
     public Expr assignment(){
-        Expr expr = comparison();
+        Expr expr = logicalOr();
         if (match(TokenType.EQUAL)){
             Token modifier = previous();
             Expr value = expression();
@@ -252,6 +229,28 @@ public class Parser {
                 System.err.println("Temp error message assignment() (variable)");
                 return null;
             }
+        }
+        return expr;
+    }
+
+    // parses expressions for the OR logical operator, returning a BinaryNode, otherwise returns logicalAnd
+    public Expr logicalOr(){
+        Expr expr = logicalAnd();
+        while (match(TokenType.OR)){
+            Token operator = previous();
+            Expr right = logicalAnd();
+            expr = new BinaryNode(expr, right, operator);
+        }
+        return expr;
+    }
+
+    // parses expressions for the AND logical operator, returning a BinaryNode, otherwise returns logicalAnd
+    public Expr logicalAnd(){
+        Expr expr = comparison();
+        while (match(TokenType.AND)){
+            Token operator = previous();
+            Expr right = comparison();
+            expr = new BinaryNode(expr, right, operator);
         }
         return expr;
     }
@@ -338,8 +337,16 @@ public class Parser {
             return new LiteralNode(previous().literal);
         } else if (match(TokenType.IDENTIFIER)){
             return new VariableNode(previous());
+        } else if (match(TokenType.LEFT_PAREN)){
+            GroupingNode node = new GroupingNode(expression());
+            if (match(TokenType.RIGHT_PAREN)){
+                return node;
+            } else {
+                System.err.println("Missing right parenthesis for grouping statement");
+                return null;
+            }
         } else {
-            System.err.println("Temp error message in primary(): Stuck on token " + peek().type + " with text '" + peek().lexeme + "'");
+            System.err.println("Temp error message in primary(): Stuck on token " + peek().type + " with text '" + peek().lexeme + "' on line: " + peek().line);
             return null;
         }
     }

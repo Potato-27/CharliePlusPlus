@@ -7,7 +7,7 @@ public enum TokenType{
     //comparison
     EQUAL_EQUAL, NOT, NOT_EQUAL, EQUAL,
     LESS, LESS_EQUAL,
-    GREATER, GREATER_EQUAL,
+    GREATER, GREATER_EQUAL, OR, AND,
     
     //types
     NUMBER, IDENTIFIER, STRING, BOOLEAN,

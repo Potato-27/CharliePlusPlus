@@ -17,6 +17,6 @@ The compiler takes an input of a `.chpp` source file and passes it through the p
 
 ## Language Design & Features
 
-- Implicit Scoping: uses `let` as the keyword for variable declaration
-- Custom Keywords: uses primarily similar keywords to java such as `while` and `class`, but uses some different keywords and native function names like `fun` for function and `print` instead of `System.out.println`.
-- Optional Syntax: does not require parenthesis around conditional statements, and semicolons are not implemented at all, expressions/statements end at newlines
+- **Implicit Scoping:** uses `let` as the keyword for variable declaration
+- **Custom Keywords:** uses primarily similar keywords to java such as `while` and `class`, but uses some different keywords and native function names like `fun` for function and `print` instead of `System.out.println`.
+- **Optional Syntax:** does not require parenthesis around conditional statements, and semicolons are not implemented at all, expressions/statements end at newlines

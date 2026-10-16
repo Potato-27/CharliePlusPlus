@@ -1,0 +1,24 @@
+let x = 10
+let y = 5
+let check = true
+
+fun main() {
+    print("Initial values:")
+    print(x)
+    print(y)
+    print(check)
+    print("")
+
+    if (x + 2) * y > 50 & check {
+        check = false
+        print("Updated check to false:")
+        print(check)
+    }
+
+    if x == 10 | check == true {
+        print("yay")
+    }
+
+    let mathResult = ((x - y) * 2) + 1
+    print(mathResult) // should be 11
+}

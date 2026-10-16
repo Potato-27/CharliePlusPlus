@@ -242,6 +242,8 @@ public class CodeGenerator {
                 return localExpr.value.toString();
             } else if (localExpr.value instanceof String){
                 return "\"" + localExpr.value + "\"";
+            } else if (localExpr.value instanceof Boolean){
+                return localExpr.value.toString();
             }
         } else if (expr instanceof VariableNode){
 
@@ -285,6 +287,11 @@ public class CodeGenerator {
 
             String rightStr = generateExpression(localExpr.right);
             return localExpr.operator.lexeme + rightStr;
+        } else if (expr instanceof GroupingNode){
+            GroupingNode localExpr = (GroupingNode) expr;
+
+            String exprStr = generateExpression(localExpr.expression);
+            return "(" + exprStr + ")";
         }
 
 

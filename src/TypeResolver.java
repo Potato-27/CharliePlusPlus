@@ -109,6 +109,10 @@ public class TypeResolver {
                     return Type.UNKNOWN;
                 }
             }
+        } else if (expr instanceof GroupingNode){
+            GroupingNode groupingNode = (GroupingNode) expr;
+
+            return resolveExpression(groupingNode.expression);
         }
 
         return Type.UNKNOWN;
