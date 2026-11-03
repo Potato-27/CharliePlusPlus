@@ -20,6 +20,7 @@ public class FunDeclNode implements Stmt {
         this.parameters = new ArrayList<>();
     }
 
+    @Override
     public String toString(){
         return "[FunDecl: " + name.lexeme + " " + block.toString() + "]";
     }
