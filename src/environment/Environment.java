@@ -22,15 +22,17 @@ public class Environment {
         map.put(name, type);
     }
 
-    // public method for checking whether a variable exists within the environment and return its type else returns Type.UNKNOWN
+    // public method for checking whether a variable exists within the environment and return its type
     public Type lookup(String name){
         if (map.containsKey(name)){
             return map.get(name);
         } else if (enclosing != null) {
             return enclosing.lookup(name);
         } else {
-            return Type.UNKNOWN;
+            return null;
         }
     }
+
+
 
 }

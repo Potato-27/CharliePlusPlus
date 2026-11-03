@@ -15,6 +15,7 @@ public class VarDeclNode implements Stmt{
         this.initializer = null;
     }
 
+    @Override
     public String toString(){
         if (initializer != null){
             return "[VarDecl: " + identifier.lexeme + " = " + initializer.toString() + "]";

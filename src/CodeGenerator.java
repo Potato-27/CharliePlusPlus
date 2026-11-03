@@ -1,8 +1,7 @@
 import nodes.*;
 import java.util.List;
 
-import environment.Environment;
-import environment.Type;
+import environment.*;
 
 import java.io.IOException;
 import java.io.FileWriter;
@@ -123,14 +122,29 @@ public class CodeGenerator {
         } else {
             javaCode.append("public static void " + node.name.lexeme + "(");
 
+            Environment previousEnv = currentEnv;
+            if (node.block.localEnv != null) {
+                currentEnv = node.block.localEnv;
+            } else {
+                currentEnv = new Environment(previousEnv);
+            }
+
             for (int i = 0; i < node.parameters.size(); i++){
-                javaCode.append("Object " + node.parameters.get(i).lexeme);
+                String typeStr = typeString(currentEnv.lookup(node.parameters.get(i).lexeme));
+                javaCode.append(typeStr + " " + node.parameters.get(i).lexeme);
                 if (i < node.parameters.size()-1){
                     javaCode.append(", ");
                 }
             }
             javaCode.append(")");
-            generateStatement(node.block, javaCode, false);
+
+            javaCode.append(" {\n");
+            for (Stmt s : node.block.block){
+                generateStatement(s, javaCode, false);
+            }
+            javaCode.append("}\n");
+            currentEnv = previousEnv;
+            //generateStatement(node.block, javaCode, false);
         }
     }
 
@@ -139,7 +153,8 @@ public class CodeGenerator {
         buffer.append("\tpublic void " + node.name.lexeme + "(");
         
         for (int i = 0; i < node.parameters.size(); i++){
-            buffer.append("Object " + node.parameters.get(i).lexeme);
+            String typeStr = typeString(currentEnv.lookup(node.parameters.get(i).lexeme));
+            buffer.append(typeStr + " " + node.parameters.get(i).lexeme);
             if (i < node.parameters.size()-1){
                 buffer.append(", ");
             }
@@ -301,17 +316,18 @@ public class CodeGenerator {
 
     // helper method that takes Type type and returns the string version of that type, applicable for functions and varaible declarations
     private String typeString(Type type){
-        if (type == Type.INT){
+        
+        if (type == PrimitiveType.INT){
             return "int";
-        } else if (type == Type.BOOLEAN){
+        } else if (type == PrimitiveType.BOOLEAN){
             return "boolean";
-        } else if (type == Type.STRING){
+        } else if (type == PrimitiveType.STRING){
             return "String";
-        } else if (type == Type.VOID){
+        } else if (type == PrimitiveType.VOID){
             return "void";
         } else {
-            System.err.println("Something went bad typeString");
-            return "unknown";
+            System.out.println(type);
+            return "Object";
         }
     }
 

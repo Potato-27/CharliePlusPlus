@@ -45,4 +45,20 @@ Recently schoolwork has been pretty draining and it's been eating all of my free
 
 ### the next steps
 - Still procrastinating working on the variable inferencing for functions and parameters, but that I think will be for the less stressed weekend Charlie
-- Adding an integrated input method for testing and to allow for the creation of proper programs in `charlie++` (this involves figuring out how to make `input()` make to the different scanner methods by type in java)
+- Adding an integrated input method for testing and to allow for the creation of proper programs in charlie++ (this involves figuring out how to make `input()` make to the different scanner methods by type in java)
+
+## Entry 4: Hindley-Milney beginning stages
+
+### what's new and working
+- **Parameters:** now functions can be declared with written parameters that can be used in that function. As of right now, it's inconsistent and buggy, but it does work for basic functions.
+- **Hindley-Milner Algorithm:** The beginnings of the Hindley Milner type inferencing system is being implemented now. This is why it's been so long since the last log, as this was fairly complex and i was just too tired to work on it. But essentially, now the type resolver goes through every node from the AST and now runs it through a different type resolving method, where unknown type are assigned placeholders, and every time an expression exists logic is done to make that type point to another. For example, if a variable is temporarily assigned type `T0`, and the resolver figures out that `T0 -> T1`, it stores these substitutions in a map. Let's say that `T1 -> int`. Therefore that initial variable, through a method called `prune()`, is also an `int`. This is the core foundation of how the algorithm works, but as of right now it is littered with bugs that I do know about and more I probably do not.
+
+### Some known bugs
+- functions cannot evaluate parameters types if their usage is withing the arguments for another function call (e.g. `print(x * x)`)
+- cannot assign `String` to parameters (defaults to `Object`)
+- fails to properly assign a type to variables initilalized without a value (like `let x`), even when it should be able to (if `x = 75` exists later)
+
+### Next steps
+- Figure out the existing bugs
+- Allow the type inferecer to look at function calls to inference the type for the parameters of a function
+- add return statements
