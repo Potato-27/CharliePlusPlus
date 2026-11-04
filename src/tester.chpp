@@ -1,10 +1,11 @@
-let x
+
 
 fun main(){
-    printProduct(5, 8)
+    let answer = 5
+    answer = squared(answer) * 4 + 37
+    print(answer)
 }
 
-fun printProduct(x, y){
-    let result = x * y
-    print(result)
+fun squared(x){
+    return x * x
 }

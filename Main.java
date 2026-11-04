@@ -1,10 +1,10 @@
 public class Main {
-	public static int x;
 	public static void main(String[] args) {
-		printProduct(5, 8);
+	int answer = 5;
+		answer = squared(answer) * 4 + 37;
+		System.out.println(answer);
 }
-public static void printProduct(int x, int y) {
-	int result = x * y;
-		System.out.println(result);
+public static Object squared(int x) {
+	return x * x;
 }
 }
