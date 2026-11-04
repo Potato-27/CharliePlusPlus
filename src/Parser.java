@@ -198,6 +198,12 @@ public class Parser {
             }
 
             return new WhileNode(condition, block);
+        } else if (match(TokenType.RETURN)){
+            
+            if (check(TokenType.NEWLINE) || check(TokenType.EOF)) {
+                return new ReturnNode(null);
+            }
+            return new ReturnNode(expression());
         } else {
             Stmt stmt = new ExpressionStatementNode(expression());
             if (match(TokenType.NEWLINE, TokenType.EOF)){

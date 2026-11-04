@@ -120,8 +120,10 @@ public class CodeGenerator {
             javaCode.append("\tpublic static void main(String[] args)");
             generateStatement(node.block, javaCode, false);
         } else {
-            javaCode.append("public static void " + node.name.lexeme + "(");
+            FunctionType funType = (FunctionType) currentEnv.lookup(node.name.lexeme);
+            String funTypeStr = typeString(funType.returnType);
 
+            javaCode.append("public static " + funTypeStr + " " + node.name.lexeme + "(");
             Environment previousEnv = currentEnv;
             if (node.block.localEnv != null) {
                 currentEnv = node.block.localEnv;
@@ -144,7 +146,6 @@ public class CodeGenerator {
             }
             javaCode.append("}\n");
             currentEnv = previousEnv;
-            //generateStatement(node.block, javaCode, false);
         }
     }
 
@@ -245,6 +246,14 @@ public class CodeGenerator {
             }
             buffer.append("}\n");
             currentEnv = previousEnv;
+        } else if (node instanceof ReturnNode){
+            ReturnNode returnNode = (ReturnNode) node;
+
+            if (returnNode.expression == null){
+                buffer.append("\treturn;\n");
+            } else {
+                buffer.append("\treturn " + generateExpression(returnNode.expression) + ";\n");
+            }
         }
     }
 
@@ -326,7 +335,7 @@ public class CodeGenerator {
         } else if (type == PrimitiveType.VOID){
             return "void";
         } else {
-            System.out.println(type);
+            
             return "Object";
         }
     }

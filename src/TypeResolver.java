@@ -13,6 +13,7 @@ public class TypeResolver {
     private final List<Stmt> programAst;
     private int nextId = 0;
     private final Map<TypeVariable, Type> substitutions = new HashMap<>();
+    private Type currentReturnType = null;
     
 
     public TypeResolver(List<Stmt> parsedCode){
@@ -29,6 +30,10 @@ public class TypeResolver {
     // primary function iterating through the list of nodes from the parser, calling resolveStatement for each node
     public void resolve(){
         for (Stmt node : programAst){
+            firstResolve(node);
+        }
+        
+        for (Stmt node : programAst){
             resolveStatement(node);
         }
 
@@ -36,6 +41,27 @@ public class TypeResolver {
 
         for (Stmt node : programAst){
             finalizeStmt(node);
+        }
+
+    }
+
+    // first pass which resolves all the function declarations using placeholder variables
+    public void firstResolve(Stmt node){
+        if (node instanceof FunDeclNode){
+            FunDeclNode funDeclNode = (FunDeclNode) node;
+            List<Type> params = new ArrayList<>();
+
+            //Environment previousEnv = this.environment;
+            //this.environment = new Environment(previousEnv);
+            for (int i = 0; i < funDeclNode.parameters.size(); i++){
+                params.add(newVariable());
+            }
+            //funDeclNode.block.localEnv = environment;
+            //this.environment = previousEnv;
+
+            Type returnType = newVariable();
+            Type functionType = new FunctionType(params, returnType);
+            environment.define(funDeclNode.name.lexeme, functionType);
         }
     }
 
@@ -60,24 +86,29 @@ public class TypeResolver {
             this.environment = previousEnv;
         } else if (node instanceof FunDeclNode){
             FunDeclNode funDeclNode = (FunDeclNode) node;
-            List<Type> params = new ArrayList<>();
-            for (int i = 0; i < funDeclNode.parameters.size(); i++){
-                params.add(newVariable());
-            }
+
+            FunctionType functionType = (FunctionType) this.environment.lookup(funDeclNode.name.lexeme);
+            List<Type> paramTypes = functionType.args;
+
+            Type previousReturnType = currentReturnType;
+            currentReturnType = functionType.returnType;
+
             Environment previousEnv = this.environment;
             this.environment = new Environment(previousEnv);
-            for (int i = 0; i< params.size(); i++){
-                environment.define(funDeclNode.parameters.get(i).lexeme, params.get(i));
+
+            for (int i = 0; i < funDeclNode.parameters.size(); i++) {
+                this.environment.define(funDeclNode.parameters.get(i).lexeme, paramTypes.get(i));
             }
+
             for (Stmt stmt : funDeclNode.block.block){
                 resolveStatement(stmt);
             }
-            // resolveStatement(funDeclNode.block);
+
             funDeclNode.block.localEnv = environment;
             this.environment = previousEnv;
 
-            Type functionType = new FunctionType(params, PrimitiveType.VOID);
-            environment.define(funDeclNode.name.lexeme, functionType);
+            currentReturnType = previousReturnType;
+
         } else if (node instanceof IfNode){
             IfNode ifNode = (IfNode) node;
             Type conditionType = resolveExpression(ifNode.condition);
@@ -91,6 +122,23 @@ public class TypeResolver {
             Type conditionType = resolveExpression(whileNode.condition);
             unify(conditionType, PrimitiveType.BOOLEAN);
             resolveStatement(whileNode.trueStatement);
+        } else if (node instanceof ExpressionStatementNode){
+            ExpressionStatementNode exprStmtNode = (ExpressionStatementNode) node;
+
+            resolveExpression(exprStmtNode.expression);
+        } else if (node instanceof ReturnNode){
+            ReturnNode returnNode = (ReturnNode) node;
+
+            Type returnType;
+            if (returnNode.expression == null){
+                returnType = PrimitiveType.VOID;
+            } else {
+                returnType = resolveExpression(returnNode.expression);
+            }
+            System.out.println("RETURN DEBUG: Unifying currentFunctionReturnType (" + this.currentReturnType + ") with computed " + returnType);
+
+            unify(currentReturnType, returnType);
+            
         }
     }
 
@@ -251,13 +299,17 @@ public class TypeResolver {
 
     // creates a new placeholder type, and increments the counter
     public TypeVariable newVariable(){
+        System.out.println("DEBUG: Created TypeVariable T" + nextId);
         return new TypeVariable(nextId++);
     }
 
     // runs through the given environment's map and reassigns all the names to their pruned types
     public void finalizeEnv(Environment env){
         env.map.forEach((key, value) -> {
-            env.map.put(key, prune(value));
+            Type pruned = prune(value);
+            System.out.println("DEBUG Finalize: " + key + " started as " + value + " and pruned to " + pruned);
+            env.map.put(key, pruned);
+             
         });
     }
 
