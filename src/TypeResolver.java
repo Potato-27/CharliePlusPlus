@@ -193,6 +193,20 @@ public class TypeResolver {
             } else if (binaryNode.operator.lexeme.equals("==") || binaryNode.operator.lexeme.equals("!=")){
                 unify(leftType, rightType);
                 return PrimitiveType.BOOLEAN;
+            } else if (binaryNode.operator.lexeme.equals("&&") || binaryNode.operator.lexeme.equals("||")){
+                unify(leftType, PrimitiveType.BOOLEAN);
+                unify(rightType, PrimitiveType.BOOLEAN);
+                return PrimitiveType.BOOLEAN;
+            }
+        }  else if (expr instanceof UnaryNode unaryNode){
+            Type rightType = resolveExpression(unaryNode.right);
+
+            if (unaryNode.operator.lexeme.equals("-")){
+                unify(rightType, PrimitiveType.INT);
+                return PrimitiveType.INT;
+            } else if (unaryNode.operator.lexeme.equals("!")){
+                unify(rightType, PrimitiveType.BOOLEAN);
+                return PrimitiveType.BOOLEAN;
             }
         } else if (expr instanceof GroupingNode){
             GroupingNode groupingNode = (GroupingNode) expr;
@@ -299,7 +313,7 @@ public class TypeResolver {
 
     // creates a new placeholder type, and increments the counter
     public TypeVariable newVariable(){
-        System.out.println("DEBUG: Created TypeVariable T" + nextId);
+        //System.out.println("DEBUG: Created TypeVariable T" + nextId);
         return new TypeVariable(nextId++);
     }
 
@@ -307,7 +321,7 @@ public class TypeResolver {
     public void finalizeEnv(Environment env){
         env.map.forEach((key, value) -> {
             Type pruned = prune(value);
-            System.out.println("DEBUG Finalize: " + key + " started as " + value + " and pruned to " + pruned);
+            //System.out.println("DEBUG Finalize: " + key + " started as " + value + " and pruned to " + pruned);
             env.map.put(key, pruned);
              
         });
@@ -326,6 +340,12 @@ public class TypeResolver {
             finalizeStmt(whileNode.trueStatement);
         } else if (stmt instanceof FunDeclNode){
             FunDeclNode funDeclNode = (FunDeclNode) stmt;
+
+            FunctionType funType = (FunctionType) environment.lookup(funDeclNode.name.lexeme);
+            for (int i = 0; i < funType.args.size(); i++){
+                funType.args.set(i, prune(funType.args.get(i)));
+            }
+            funType.returnType = prune(funType.returnType);
 
             finalizeStmt(funDeclNode.block);
         } else if (stmt instanceof IfNode){

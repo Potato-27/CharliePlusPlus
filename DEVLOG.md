@@ -18,7 +18,6 @@
 1. sort out the local environment architecture for variable names for when inside functions or other classes.
 2. Learn, figure out, and implement the proper needed architecture for variable inferencing for parameters when declaring functions.
 
-
 ## Entry 2: bug fixing, quality of life, scope management (10/12/2026)
 
 ### what's working and done
@@ -62,3 +61,20 @@ Recently schoolwork has been pretty draining and it's been eating all of my free
 - Figure out the existing bugs
 - Allow the type inferecer to look at function calls to inference the type for the parameters of a function
 - add return statements
+
+## Entry 5: Return statements, function types, bug fixes
+
+### what's new and working
+- **Return statements/function types:** now functions can return values! the function type is automatically inferenced, and values can be automatically returned. 
+- **Bug fixes:** To be completely honest I do not remember what all of the little bugs were, but now parameters are properly assigned values based on how they are called and used, including as parameters in another function call
+- **Examples:** I was having fun during a college visit having AI generate different programs in charlie++, and I put some in the new `examples` folder. I did not make any of the programs there myself because I don't fully understand them, but they just serve to stress-test charlie++ and makes some cool visuals like the truecolor mandelbrot set generator.
+
+### persisting bugs
+- The variable initialization without an initializer value still does not work, I have to figure out how to differentiate between a null initializer and a non-existant initializer
+- right now if a function just says `print(x)` where the function has parameter `x`, it will just define the parameter type as what it is when first called, so I need to establish proper polymorphism and a `forall a.` type for functions like `print()`
+
+### the next steps
+- as previously mentioned, I have to implement polymorphic type shenanigans
+- I'm most likely going to scrap the use of classes because it just adds complexity that is not really necessary for my language, but I'll consider adding them in the far future, but I just have too much on my plate right now as is.
+- add float/double (decimal) values, and work that in with the TypeResolver, probably adding some sort of attribute to `TypeVariable` so it can work in with integers and addition
+- code a vscode extension so there are colors when typing in chpp because colors are fun :)

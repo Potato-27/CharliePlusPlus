@@ -97,7 +97,7 @@ public class Lexer{
 
     private void identifierHandler(){
         String temp;
-        while (isAlpha(peek())){
+        while (isAlpha(peek()) || isNumber(peek())){
             advance();
         }
         temp = source.substring(start, current);
@@ -149,6 +149,13 @@ public class Lexer{
         
         while (isNumber(peek())){
             advance();
+        }
+
+        if (peek() == '.'){
+            advance();
+            while (isNumber(peek())){
+                advance();
+            }
         }
         temp = source.substring(start, current);
         

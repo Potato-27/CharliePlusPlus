@@ -2,8 +2,8 @@ package environment;
 import java.util.List;
 
 public class FunctionType implements Type {
-    public final List<Type> args;
-    public final Type returnType;
+    public List<Type> args;
+    public Type returnType;
 
     public FunctionType(List<Type> args, Type returnType){
         this.args = args;
