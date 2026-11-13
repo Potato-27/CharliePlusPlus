@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
 
 
 
@@ -20,11 +22,23 @@ public class TypeResolver {
         this.programAst = parsedCode;
         this.environment = new Environment();
 
-        // setting up built-in functions (i.e. print)
+        // setting up built-in functions (e.g. print, sin)
         List<Type> printArgs = new ArrayList<>();
-        printArgs.add(PrimitiveType.STRING);
-        Type printType = new FunctionType(printArgs, PrimitiveType.VOID);
-        this.environment.define("print", printType);
+        printArgs.add(newVariable());
+        this.environment.define("print", generalize(new FunctionType(printArgs, PrimitiveType.VOID)));
+
+        List<Type> sinArgs = new ArrayList<>();
+        sinArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("sin", generalize(new FunctionType(sinArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> cosArgs = new ArrayList<>();
+        cosArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("cos", generalize(new FunctionType(cosArgs, PrimitiveType.DOUBLE)));
+
+        this.environment.define("e", PrimitiveType.DOUBLE);
+        this.environment.define("pi", PrimitiveType.DOUBLE);
+
+
     }
 
     // primary function iterating through the list of nodes from the parser, calling resolveStatement for each node
@@ -72,7 +86,8 @@ public class TypeResolver {
             if (varDeclNode.initializer == null){
                 environment.define(varDeclNode.identifier.lexeme, newVariable());
             } else {
-                environment.define(varDeclNode.identifier.lexeme, resolveExpression(varDeclNode.initializer));
+                
+                environment.define(varDeclNode.identifier.lexeme, generalize(resolveExpression(varDeclNode.initializer)));
             }
             
         } else if (node instanceof BlockNode){
@@ -104,8 +119,13 @@ public class TypeResolver {
                 resolveStatement(stmt);
             }
 
+            
+
             funDeclNode.block.localEnv = environment;
             this.environment = previousEnv;
+
+            this.environment.map.remove(funDeclNode.name.lexeme);
+            this.environment.define(funDeclNode.name.lexeme, generalize(functionType));
 
             currentReturnType = previousReturnType;
 
@@ -153,12 +173,21 @@ public class TypeResolver {
                 return PrimitiveType.STRING;
             } else if (literalNode.value instanceof Boolean){
                 return PrimitiveType.BOOLEAN;
+            } else if (literalNode.value instanceof Double){
+                return PrimitiveType.DOUBLE;
             }
 
+        } else if (expr instanceof NullLiteralNode){
+            return newVariable();
         } else if (expr instanceof VariableNode){
             VariableNode variableNode = (VariableNode) expr;
 
-            return environment.lookup(variableNode.identifier.lexeme);
+            Type type = environment.lookup(variableNode.identifier.lexeme);
+            if (type instanceof Scheme scheme){
+                return instantiate(scheme);
+            } else {
+                return type;
+            }
         } else if (expr instanceof BinaryNode) {
             BinaryNode binaryNode = (BinaryNode) expr;
             
@@ -167,28 +196,37 @@ public class TypeResolver {
 
 
             if (List.of("-", "*", "/", "%").contains(binaryNode.operator.lexeme)){
-                unify(leftType, PrimitiveType.INT);
-                unify(rightType, PrimitiveType.INT);
-                return PrimitiveType.INT;
-            } else if (binaryNode.operator.lexeme.equals("+")){
-                Type prunedLeft = prune(leftType);
-                Type prunedRight = prune(rightType);
-                if (prunedRight == PrimitiveType.STRING || prunedLeft == PrimitiveType.STRING){
-                    unify(leftType, PrimitiveType.STRING);
-                    unify(rightType, PrimitiveType.STRING);
-                    return PrimitiveType.STRING;
-                } else if (prunedLeft == PrimitiveType.INT) {
-                    
-                    unify(leftType, PrimitiveType.INT);
-                    unify(rightType, PrimitiveType.INT);
-                    return PrimitiveType.INT;
-                } else {
-                    unify(leftType, rightType);
-                    return leftType;
+                
+                Type resultType = newVariable(Constraint.NUMBER);
+                Type newVarLeft = newVariable(Constraint.NUMBER);
+                Type newVarRight = newVariable(Constraint.NUMBER);
+                unify(leftType, newVarLeft);
+                unify(rightType, newVarRight);
+                if (prune(leftType)==PrimitiveType.DOUBLE || prune(rightType)==PrimitiveType.DOUBLE){
+                    unify(resultType, PrimitiveType.DOUBLE);
+                } else if (prune(leftType) == PrimitiveType.INT && prune(rightType) == PrimitiveType.INT){
+                    unify(resultType, PrimitiveType.INT);
                 }
+                return resultType;
+            } else if (binaryNode.operator.lexeme.equals("+")){
+                Type resultType = newVariable(Constraint.ADDABLE);
+                Type newVarLeft = newVariable(Constraint.ADDABLE);
+                Type newVarRight = newVariable(Constraint.ADDABLE);
+                unify(leftType, newVarLeft);
+                unify(rightType, newVarRight);
+                if (prune(leftType) == PrimitiveType.STRING || prune(rightType) == PrimitiveType.STRING){
+                    unify(resultType, PrimitiveType.STRING);
+                } else if (prune(leftType)==PrimitiveType.DOUBLE || prune(rightType)==PrimitiveType.DOUBLE){
+                    unify(resultType, PrimitiveType.DOUBLE);
+                } else if (prune(leftType) == PrimitiveType.INT && prune(rightType) == PrimitiveType.INT){
+                    unify(resultType, PrimitiveType.INT);
+                }
+                return resultType;
+
             } else if (List.of(">", "<", "<=", ">=").contains(binaryNode.operator.lexeme)){
-                unify(leftType, PrimitiveType.INT);
-                unify(rightType, PrimitiveType.INT);
+                
+                unify(leftType, newVariable(Constraint.NUMBER));
+                unify(rightType, newVariable(Constraint.NUMBER));
                 return PrimitiveType.BOOLEAN;
             } else if (binaryNode.operator.lexeme.equals("==") || binaryNode.operator.lexeme.equals("!=")){
                 unify(leftType, rightType);
@@ -198,12 +236,18 @@ public class TypeResolver {
                 unify(rightType, PrimitiveType.BOOLEAN);
                 return PrimitiveType.BOOLEAN;
             }
-        }  else if (expr instanceof UnaryNode unaryNode){
+        } else if (expr instanceof UnaryNode unaryNode){
             Type rightType = resolveExpression(unaryNode.right);
-
+        
             if (unaryNode.operator.lexeme.equals("-")){
-                unify(rightType, PrimitiveType.INT);
-                return PrimitiveType.INT;
+                unify(rightType, newVariable(Constraint.NUMBER));
+                TypeVariable resultType = newVariable(Constraint.NUMBER);
+                if (prune(rightType) == PrimitiveType.INT){
+                    unify(resultType, PrimitiveType.INT);
+                } else if (prune(rightType) == PrimitiveType.DOUBLE){
+                    unify(resultType, PrimitiveType.DOUBLE);
+                }
+                return resultType;
             } else if (unaryNode.operator.lexeme.equals("!")){
                 unify(rightType, PrimitiveType.BOOLEAN);
                 return PrimitiveType.BOOLEAN;
@@ -221,6 +265,7 @@ public class TypeResolver {
             Type returnType = newVariable();
             Type expectedFunctionType = new FunctionType(args, returnType);
             unify(calleeType, expectedFunctionType);
+            callNode.inferredType = returnType;
             return returnType;
         } else if (expr instanceof AssignmentNode){
             AssignmentNode assignmentNode = (AssignmentNode) expr;
@@ -254,17 +299,65 @@ public class TypeResolver {
             return;
         } else {
             if (t1 instanceof TypeVariable){
+                
+                
                 if (occursIn((TypeVariable) t1, t2)){
                     System.err.println("Cyclic type infinite loop");
                     System.exit(0);
                 }
+
+                if (((TypeVariable) t1).constraint != Constraint.NONE){
+                    if (t2 instanceof TypeVariable) {
+                        if (((TypeVariable) t2).constraint == Constraint.NONE){
+                            ((TypeVariable) t2).constraint = ((TypeVariable) t1).constraint;
+                        }
+                        substitutions.put((TypeVariable) t1, t2);
+                        return;
+                    } else {
+                        if (((TypeVariable) t1).constraint == Constraint.NUMBER && (t2 == PrimitiveType.INT || t2 == PrimitiveType.DOUBLE)){
+                            substitutions.put((TypeVariable) t1, t2);
+                            return;
+                        } else if (((TypeVariable) t1).constraint == Constraint.ADDABLE && (t2 == PrimitiveType.INT || t2 == PrimitiveType.DOUBLE || t2 == PrimitiveType.STRING)){
+                            substitutions.put((TypeVariable) t1, t2);
+                            return;
+                        } else {
+                            System.err.println("Invalid Type: " + t2);
+                            System.exit(0);
+                        }
+                    }
+                }
+
                 substitutions.put((TypeVariable) t1, t2);
                 return;
+
+
             } else if (t2 instanceof TypeVariable){
                 if (occursIn((TypeVariable) t2, t1)){
                     System.err.println("Cyclic type infinite loop");
                     System.exit(0);
                 }
+
+                if (((TypeVariable) t2).constraint != Constraint.NONE){
+                    if (t1 instanceof TypeVariable) {
+                        if (((TypeVariable) t1).constraint == Constraint.NONE){
+                            ((TypeVariable) t1).constraint = ((TypeVariable) t2).constraint;
+                        }
+                        substitutions.put((TypeVariable) t2, t1);
+                        return;
+                    } else {
+                        if (((TypeVariable) t2).constraint == Constraint.NUMBER && (t1 == PrimitiveType.INT || t1 == PrimitiveType.DOUBLE)){
+                            substitutions.put((TypeVariable) t2, t1);
+                            return;
+                        } else if (((TypeVariable) t2).constraint == Constraint.ADDABLE && (t1 == PrimitiveType.INT || t1 == PrimitiveType.DOUBLE || t1 == PrimitiveType.STRING)){
+                            substitutions.put((TypeVariable) t2, t1);
+                            return;
+                        } else {
+                            System.err.println("Invalid Type: " + t1);
+                            System.exit(0);
+                        }
+                    }
+                }
+
                 substitutions.put((TypeVariable) t2, t1);
                 return;
             } else if (t1 instanceof FunctionType && t2 instanceof FunctionType){
@@ -281,6 +374,12 @@ public class TypeResolver {
                     unify(ft1.returnType, ft2.returnType);
                     return;
                 }
+            } else {
+                if (t1 == PrimitiveType.DOUBLE && t2 == PrimitiveType.INT){
+                    return;
+                }
+                System.err.println("Type error: Cannot unify " + t1 + " with " + t2);
+                System.exit(1);
             }
         }
     }
@@ -317,9 +416,17 @@ public class TypeResolver {
         return new TypeVariable(nextId++);
     }
 
+    public TypeVariable newVariable(Constraint constraint){
+        //System.out.println("DEBUG: Created TypeVariable T" + nextId);
+        return new TypeVariable(nextId++, constraint);
+    }
+
     // runs through the given environment's map and reassigns all the names to their pruned types
     public void finalizeEnv(Environment env){
         env.map.forEach((key, value) -> {
+            if (value instanceof Scheme scheme){
+                scheme.type = prune(scheme.type);
+            }
             Type pruned = prune(value);
             //System.out.println("DEBUG Finalize: " + key + " started as " + value + " and pruned to " + pruned);
             env.map.put(key, pruned);
@@ -337,11 +444,13 @@ public class TypeResolver {
             finalizeEnv(blockNode.localEnv);
         } else if (stmt instanceof WhileNode){
             WhileNode whileNode = (WhileNode) stmt;
+            finalizeExpr(whileNode.condition);
             finalizeStmt(whileNode.trueStatement);
         } else if (stmt instanceof FunDeclNode){
             FunDeclNode funDeclNode = (FunDeclNode) stmt;
 
-            FunctionType funType = (FunctionType) environment.lookup(funDeclNode.name.lexeme);
+            Scheme scheme = (Scheme) environment.lookup(funDeclNode.name.lexeme);
+            FunctionType funType = (FunctionType) scheme.type;
             for (int i = 0; i < funType.args.size(); i++){
                 funType.args.set(i, prune(funType.args.get(i)));
             }
@@ -351,10 +460,120 @@ public class TypeResolver {
         } else if (stmt instanceof IfNode){
             IfNode ifNode = (IfNode) stmt;
             finalizeStmt(ifNode.trueStatement);
+            finalizeExpr(ifNode.condition);
             if (ifNode.falseStatement != null){
                 finalizeStmt(ifNode.falseStatement);
             }
-        } 
+        } else if (stmt instanceof VarDeclNode node){
+            finalizeExpr(node.initializer);
+        } else if (stmt instanceof ExpressionStatementNode node){
+            finalizeExpr(node.expression);
+        } else if (stmt instanceof ReturnNode node){
+            finalizeExpr(node.expression);
+        }
+    }
+
+    public void finalizeExpr(Expr expr){
+        
+        if (expr == null){
+            return;
+        } else if (expr instanceof CallNode callNode){
+            callNode.inferredType = prune(callNode.inferredType);
+            for (Expr arg : callNode.arguments){
+                finalizeExpr(arg);
+            }
+        } else if (expr instanceof BinaryNode node){
+            finalizeExpr(node.left);
+            finalizeExpr(node.right);
+        } else if (expr instanceof GroupingNode node){
+            finalizeExpr(node.expression);
+        } else if (expr instanceof AssignmentNode node){
+            finalizeExpr(node.value);
+        } else if (expr instanceof UnaryNode node){
+            finalizeExpr(node.right);
+        }
+    }
+
+    public Set<TypeVariable> obtainVars(Type type){
+        
+
+        Type pruned = prune(type);
+        if (pruned instanceof TypeVariable typeVariable){
+            Set<TypeVariable> vars = new HashSet<>();
+            vars.add(typeVariable);
+            return vars;
+        } else if (pruned instanceof FunctionType functionType){
+            Set<TypeVariable> vars = new HashSet<>();
+            for (Type arg : functionType.args){
+                vars.addAll(obtainVars(arg));
+            }
+            vars.addAll(obtainVars(functionType.returnType));
+
+            return vars;
+        } else if (pruned instanceof PrimitiveType){
+            return new HashSet<>();
+        } else if (pruned instanceof Scheme scheme){
+            Set<TypeVariable> vars = obtainVars(scheme.type);
+            vars.removeAll(scheme.bounds);
+            return vars;
+        }
+
+        return new HashSet<>();
+    }
+
+    public Set<TypeVariable> obtainEnvVars(Environment env){
+        Set<TypeVariable> vars = new HashSet<>();
+        env.map.forEach((key, value) -> {
+            Type pruned = prune(value);
+            vars.addAll(obtainVars(pruned));
+        });
+
+        if (env.enclosing != null){
+            vars.addAll(obtainEnvVars(env.enclosing));
+        }
+
+        return vars;
+    }
+
+    public Scheme generalize(Type type){
+        Type pruned = prune(type);
+        Scheme scheme = new Scheme(pruned);
+        Set<TypeVariable> typeVars = obtainVars(pruned);
+        Set<TypeVariable> envVars = obtainEnvVars(environment);
+
+        typeVars.removeAll(envVars);
+        scheme.bounds.addAll(typeVars);
+        return scheme;
+    }
+
+    public Type instantiate(Scheme scheme){
+        Map<TypeVariable, TypeVariable> mapVars = new HashMap<>();
+        for (TypeVariable var : scheme.bounds){
+            mapVars.put(var, newVariable(var.constraint));
+        }
+
+        return substitute(scheme.type, mapVars);
+    }
+
+    public Type substitute(Type type, Map<TypeVariable, TypeVariable> mapping){
+        Type pruned = prune(type);
+        if (pruned instanceof TypeVariable typeVar){
+            if (mapping.containsKey(typeVar)){
+                return mapping.get(typeVar);
+            }
+            return pruned;
+        } else if (pruned instanceof FunctionType funType){
+            List<Type> args = new ArrayList<>();
+            for (Type arg : funType.args){
+                args.add(substitute(arg, mapping));
+            }
+            Type returnType = substitute(funType.returnType, mapping);
+            return new FunctionType(args, returnType);
+        } else if (pruned instanceof PrimitiveType){
+            return pruned;
+        }
+
+        return newVariable();
     }
 
 }

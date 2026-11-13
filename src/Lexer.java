@@ -112,6 +112,7 @@ public class Lexer{
             case "fayzan" -> tokens.add(new Token(temp, TokenType.FAYZAN, null, line));
             case "class" -> tokens.add(new Token(temp, TokenType.CLASS, null, line));
             case "let" -> tokens.add(new Token(temp, TokenType.KEYWORD_LET, null, line));
+            case "none" -> tokens.add(new Token(temp, TokenType.NULL, null, line));
             // boolean literals
             case "true" -> tokens.add(new Token(temp, TokenType.BOOLEAN, true, line));
             case "false" -> tokens.add(new Token(temp, TokenType.BOOLEAN, false, line));
@@ -156,6 +157,9 @@ public class Lexer{
             while (isNumber(peek())){
                 advance();
             }
+            temp = source.substring(start, current);
+            tokens.add(new Token(temp, TokenType.NUMBER, Double.parseDouble(temp), line));
+            return;
         }
         temp = source.substring(start, current);
         

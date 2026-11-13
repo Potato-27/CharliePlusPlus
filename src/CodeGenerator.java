@@ -32,9 +32,6 @@ public class CodeGenerator {
                 generateGlobalVariable((VarDeclNode) node, javaCode);
             } else if (node instanceof FunDeclNode) {
                 generateTopLevelFunction((FunDeclNode) node);
-            } else if (node instanceof ClassDeclNode) {
-                generateClass((ClassDeclNode) node);
-                generatedFiles.add(((ClassDeclNode) node).name.lexeme + ".java");
             }
         }
 
@@ -90,26 +87,34 @@ public class CodeGenerator {
 
     // method that handles the transcription of declaration of global variables in the Main java class or other classes (uses "public static" prefix )
     public void generateGlobalVariable(VarDeclNode node, StringBuilder buffer){
+        String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
         if (node.initializer == null){
-            buffer.append("\tpublic static int " + node.identifier.lexeme + ";\n");
+            buffer.append("\tpublic static " + javaType + node.identifier.lexeme + ";\n");
         } else{
             String expressionStr = generateExpression(node.initializer);
-            String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
-
             buffer.append("\tpublic static " + javaType + " " + node.identifier.lexeme + " = " + expressionStr + ";\n");
         }
     }
 
     // method that handles the transcription of local variables within functions (does not use "public static")
     public void generateLocalVariable(VarDeclNode node, StringBuilder buffer){
-        if (node.initializer == null){
-            buffer.append("\tint " + node.identifier.lexeme + ";\n");
-        } else{
-            String expressionStr = generateExpression(node.initializer);
-            String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
-
-            buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = " + expressionStr + ";\n");
+        String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
+        if (node.initializer == null) {
+            if (javaType.equals("int")) {
+                buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = 0;\n");
+            } else if (javaType.equals("boolean")) {
+                buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = false;\n");
+            } else if (javaType.equals("double")) {
+                buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = 0.0;\n");
+            } else {
+                buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = null;\n");
+            }
             
+        } else if (node.initializer instanceof NullLiteralNode){
+            buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = null;\n");
+        } else {
+            String expressionStr = generateExpression(node.initializer);
+            buffer.append("\t" + javaType + " " + node.identifier.lexeme + " = " + expressionStr + ";\n");
         }
     }
 
@@ -120,7 +125,8 @@ public class CodeGenerator {
             javaCode.append("\tpublic static void main(String[] args)");
             generateStatement(node.block, javaCode, false);
         } else {
-            FunctionType funType = (FunctionType) currentEnv.lookup(node.name.lexeme);
+            Scheme scheme = (Scheme) currentEnv.lookup(node.name.lexeme);
+            FunctionType funType = (FunctionType) scheme.type;
             String funTypeStr = typeString(funType.returnType);
 
             javaCode.append("public static " + funTypeStr + " " + node.name.lexeme + "(");
@@ -163,31 +169,6 @@ public class CodeGenerator {
         buffer.append(")");
 
         generateStatement(node.block, buffer, false);
-    }
-
-    // method that handles the declaration of classes, creating a new StringBuilder for a separate java class file and writes its own file separate from Main.java
-    public void generateClass(ClassDeclNode node){
-        StringBuilder classCode = new StringBuilder();
-        classCode.append("class " + node.name.lexeme + "{\n");
-        for (VarDeclNode localVar : node.fields){
-            generateLocalVariable((VarDeclNode) localVar, classCode);
-        }
-        for (FunDeclNode localFun : node.methods){
-            generateLocalFunction((FunDeclNode) localFun, classCode);
-        }
-
-        classCode.append("}");
-
-        String finalClassCode = classCode.toString();
-
-        try {
-            FileWriter fileWriter = new FileWriter(node.name.lexeme + ".java");
-            fileWriter.write(finalClassCode);
-            fileWriter.close();
-        } catch (IOException e){
-            System.out.println("error");
-            e.printStackTrace();
-        }
     }
 
     // general method that handles the transcription of any and all statements, testing each statements it is called on to see what type and acting accordingly
@@ -262,16 +243,23 @@ public class CodeGenerator {
         if (expr instanceof LiteralNode){
             
             LiteralNode localExpr = (LiteralNode) expr;
-            if (localExpr.value instanceof Integer){
+            if (localExpr.value instanceof Integer || localExpr.value instanceof Double){
                 return localExpr.value.toString();
             } else if (localExpr.value instanceof String){
                 return "\"" + localExpr.value + "\"";
             } else if (localExpr.value instanceof Boolean){
                 return localExpr.value.toString();
-            }
+            } 
+        } else if (expr instanceof NullLiteralNode){
+            return "null";
         } else if (expr instanceof VariableNode){
 
             VariableNode localExpr = (VariableNode) expr;
+            if (localExpr.identifier.lexeme.equals("e")){
+                return "Math.e";
+            } else if (localExpr.identifier.lexeme.equals("pi")){
+                return "Math.PI";
+            }
             return localExpr.identifier.lexeme;
         } else if (expr instanceof CallNode){
 
@@ -285,10 +273,26 @@ public class CodeGenerator {
             String argsJoined = String.join(", ", args);
 
             if (localExpr.name instanceof VariableNode){
+                
+                
+                
                 VariableNode name = (VariableNode) localExpr.name;
+                // explicitly printing names for built=in functions, like print() -> System.out.println() or sin() -> Math.sin()
                 if (name.identifier.lexeme.equals("print")){
                     return "System.out.println(" + argsJoined + ")";
-                } else {
+                } else if (name.identifier.lexeme.equals("sin")){
+                    return "Math.sin(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("cos")){
+                    return "Math.cos(" + argsJoined + ")";
+                }
+                
+                
+                else {
+                    Scheme scheme = (Scheme) currentEnv.lookup(name.identifier.lexeme);
+                    FunctionType funType = (FunctionType) scheme.type;
+                    if (typeString(funType.returnType).equals("Object") && !typeString(localExpr.inferredType).equals("Object")  && !typeString(localExpr.inferredType).equals("void")){
+                        return "(("+ typeString(localExpr.inferredType) + ") " + name.identifier.lexeme + "(" + argsJoined + "))";
+                    }
                     return name.identifier.lexeme + "(" + argsJoined + ")";
                 }
             }
@@ -326,7 +330,9 @@ public class CodeGenerator {
     // helper method that takes Type type and returns the string version of that type, applicable for functions and varaible declarations
     private String typeString(Type type){
         
-        if (type == PrimitiveType.INT){
+        if (type instanceof Scheme scheme){
+            return typeString(scheme.type);
+        } else if (type == PrimitiveType.INT){
             return "int";
         } else if (type == PrimitiveType.BOOLEAN){
             return "boolean";
@@ -334,10 +340,16 @@ public class CodeGenerator {
             return "String";
         } else if (type == PrimitiveType.VOID){
             return "void";
-        } else {
-            
-            return "Object";
+        } else if (type == PrimitiveType.DOUBLE){
+            return "double";
+        } else if (type instanceof TypeVariable typeVar){
+            if (typeVar.constraint == Constraint.NUMBER){
+                return "int";
+            } if (typeVar.constraint == Constraint.ADDABLE){
+                return "int";
+            }
         }
+        return "Object";
     }
 
 }

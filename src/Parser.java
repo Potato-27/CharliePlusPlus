@@ -206,7 +206,7 @@ public class Parser {
             return new ReturnNode(expression());
         } else {
             Stmt stmt = new ExpressionStatementNode(expression());
-            if (match(TokenType.NEWLINE, TokenType.EOF)){
+            if (match(TokenType.NEWLINE, TokenType.EOF) || check(TokenType.RIGHT_BRACE)){
                 return stmt;
             } else {
                 System.err.println("Temp error message statement() (else)");
@@ -330,7 +330,6 @@ public class Parser {
                 System.err.println("Temp error message call() (right paren)");
                 return null;
             }
-            
 
         }
         return expr;
@@ -339,7 +338,10 @@ public class Parser {
 
     // parses expressions to return raw literals or variables
     public Expr primary(){
-        if (match(TokenType.NUMBER, TokenType.STRING, TokenType.BOOLEAN)){
+        if (match(TokenType.NUMBER, TokenType.STRING, TokenType.BOOLEAN, TokenType.NULL)){
+            if (previous().type == TokenType.NULL){
+                return new NullLiteralNode();
+            }
             return new LiteralNode(previous().literal);
         } else if (match(TokenType.IDENTIFIER)){
             return new VariableNode(previous());

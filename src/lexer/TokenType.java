@@ -14,7 +14,7 @@ public enum TokenType{
     
     // keywords
     IF, ELSE, FOR, WHILE, RETURN, FUNCTION, FAYZAN, CLASS,
-    KEYWORD_LET, TRUE, FALSE,
+    KEYWORD_LET, TRUE, FALSE, NULL,
     
     //end of file marker
     EOF

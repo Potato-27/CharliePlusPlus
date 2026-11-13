@@ -5,7 +5,7 @@ import java.util.HashMap;
 
 public class Environment {
     public Map<String, Type> map; // Map of variables/functions to their associated type for this environment
-    private Environment enclosing;
+    public Environment enclosing;
 
     public Environment(){
         this.map = new HashMap<>();
