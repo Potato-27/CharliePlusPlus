@@ -18,7 +18,6 @@
 1. sort out the local environment architecture for variable names for when inside functions or other classes.
 2. Learn, figure out, and implement the proper needed architecture for variable inferencing for parameters when declaring functions.
 
-
 ## Entry 2: bug fixing, quality of life, scope management (10/12/2026)
 
 ### what's working and done
@@ -47,11 +46,11 @@ Recently schoolwork has been pretty draining and it's been eating all of my free
 - Still procrastinating working on the variable inferencing for functions and parameters, but that I think will be for the less stressed weekend Charlie
 - Adding an integrated input method for testing and to allow for the creation of proper programs in charlie++ (this involves figuring out how to make `input()` make to the different scanner methods by type in java)
 
-## Entry 4: Hindley-Milney beginning stages
+## Entry 4: Hindley-Milner beginning stages
 
 ### what's new and working
 - **Parameters:** now functions can be declared with written parameters that can be used in that function. As of right now, it's inconsistent and buggy, but it does work for basic functions.
-- **Hindley-Milner Algorithm:** The beginnings of the Hindley Milner type inferencing system is being implemented now. This is why it's been so long since the last log, as this was fairly complex and i was just too tired to work on it. But essentially, now the type resolver goes through every node from the AST and now runs it through a different type resolving method, where unknown type are assigned placeholders, and every time an expression exists logic is done to make that type point to another. For example, if a variable is temporarily assigned type `T0`, and the resolver figures out that `T0 -> T1`, it stores these substitutions in a map. Let's say that `T1 -> int`. Therefore that initial variable, through a method called `prune()`, is also an `int`. This is the core foundation of how the algorithm works, but as of right now it is littered with bugs that I do know about and more I probably do not.
+- **Hindley-Milner Algorithm:** The beginnings of the Hindley Milner type inferencing system is being implemented now. This is why it's been so long since the last log, as this was fairly complex and I was just too tired to work on it. But essentially, now the type resolver goes through every node from the AST and now runs it through a different type resolving method, where unknown type are assigned placeholders, and every time an expression exists logic is done to make that type point to another. For example, if a variable is temporarily assigned type `T0`, and the resolver figures out that `T0 -> T1`, it stores these substitutions in a map. Let's say that `T1 -> int`. Therefore that initial variable, through a method called `prune()`, is also an `int`. This is the core foundation of how the algorithm works, but as of right now it is littered with bugs that I do know about and more I probably do not.
 
 ### Some known bugs
 - functions cannot evaluate parameters types if their usage is withing the arguments for another function call (e.g. `print(x * x)`)
@@ -62,3 +61,64 @@ Recently schoolwork has been pretty draining and it's been eating all of my free
 - Figure out the existing bugs
 - Allow the type inferecer to look at function calls to inference the type for the parameters of a function
 - add return statements
+
+## Entry 5: Return statements, function types, bug fixes
+
+### what's new and working
+- **Return statements/function types:** now functions can return values! the function type is automatically inferenced, and values can be automatically returned. 
+- **Bug fixes:** To be completely honest I do not remember what all of the little bugs were, but now parameters are properly assigned values based on how they are called and used, including as parameters in another function call
+- **Examples:** I was having fun during a college visit having AI generate different programs in charlie++, and I put some in the new `examples` folder. I did not make any of the programs there myself because I don't fully understand them, but they just serve to stress-test charlie++ and makes some cool visuals like the truecolor mandelbrot set generator. Again I did not code those files myself I was just having fun and they also serve as good examples.
+
+### persisting bugs
+- The variable initialization without an initializer value still does not work, I have to figure out how to differentiate between a null initializer and a non-existant initializer
+- right now if a function just says `print(x)` where the function has parameter `x`, it will just define the parameter type as what it is when first called, so I need to establish proper polymorphism and a `forall a.` type for functions like `print()`
+
+### the next steps
+- as previously mentioned, I have to implement polymorphic type shenanigans
+- I'm most likely going to scrap the use of classes because it just adds complexity that is not really necessary for my language, but I'll consider adding them in the far future, but I just have too much on my plate right now as is.
+- add float/double (decimal) values, and work that in with the TypeResolver, probably adding some sort of attribute to `TypeVariable` so it can work in with integers and addition
+- code a vscode extension so there are colors when typing in chpp because colors are fun :)
+
+## Entry 6: some bug fixes and updates, doubles, and cleanup
+
+### what's new
+- **Doubles:** Massive news everyone decimals are now working. Generally implementation was pretty simple except for suprise suprise, the TypeResolver. I had to implement a whole new system, which is described in the next bullet.
+- **Constraints:** Now `TypeVariable` has an attribute `constraint`. There's right now `NUMBER`, `ADDABLE`, and `NONE`. This had to be done to allow things like integers anbd doubles to be multiplied and make the expression properly resolve to an integer or double, and how they interact with the overloaded `+` operator with string addition and all of that. I could have potentially just made it so all numbers are intrinsically doubles, but then printing would be wonky with everything having `.0` at the end for numbers, also in the future when I add lists/arrays, integers are used to access indicies, and if everything was doubles then I would have to do some casting shenanigans, which probably would have been easier but this was more fun :P
+- **Classes are gone:** I deleted the class-related code in `CodeGenerator.java` yeah thats it
+- **Null initializer fixed:** Added a new `NullLiteralNode` and `null` keyword, and fixed that with variable declaration without an initializing value (e.g. `let x`), so now initializers are optional and the `null` keyword can be used which is lovely lovely
+
+### the next steps
+- I still need my colors for charlie++
+- Polymorphic type inferencing still needs to be implemented, but this will likely take a bit longer as it's complicated and I believe I will have to rework part of my program anyway
+- after that I will finally be able to start doing lists and arrays which I am very excited for
+
+## Entry 7: polymorphism
+
+### what's new
+- **Polymorphism:** This was really confusing for me to be honest, but it has been implemented. What it essentially does is for variables or functions, their type are not immediately set in stone. like for example, `fun id(x){ return x }` before this addition, after it is called as for example `id(5)`, it would be locked in as a function with a return type `int`, and compile to `public static int id(int x)`. This same concept applies for variable declarations.
+- **Type Schemes:** Whenever a function is declared or a variable, it is wrapped in a new `Scheme` type, with free unresolved variables associated with that type being assigned to that Scheme's `bounds`. Every time a function is called, it uses the `instantiate()` method to creates and returns a new `FunctionType` by copying the previous `TypeVariables` into new ones, allowing each independent call to have its own associated types.
+- **Inferred Return Types:** When a function returns an `Object`, it cannot be added to an `int` because java does not allow that, even if the object it is returning is a number. Now, `CallNode` has an `inferredType` attribute that is calculated through the methods mentioned previously, so when `id(x)` is called like `let y = id(5) + 7`, it will compile to `public static int y = ((int) id(5)) + 7;`, preventing any errors by casting the result to the `inferredType`.
+- **Integer compatibility with doubles:** just a quick fix allowing `DOUBLE` to be unified with `INT` in specifically that order, so if a function has a parameter that is resolved to a `double` but is called with an `int`, it does not throw an error and allows it. However, the other way around does not work and does cause an error, as intended.
+- **e, pi, and math functions:** I added integrated math functions and constants, specficially `e`, `pi`, `sin()`, and `cos()`. I recently decided to pivot my language to be more math-oriented, so I want to make it closer to writing actual standard math notation and make it convenient when writing scripts. This also gives my language a concrete purpose, which is something I did not really have before other than making a quality-of-life java-esc language. Also, `print()` using the new polymorphic pipeline, so that it can take anything as a parameter.
+
+### the next steps
+- Im procrastinating the colors
+- More built-in math stuff, like the `^` operator for exponents, which will utilize `Math.pow()` in java. I also would like to add implicit multiplication, like if the variable `x` is defined and you want to write `let y = 3x + 1`.
+- More math related stuff I want to add single-line function definitions so things like `f(x) = x^2 + 3x - 1` are valid syntax, I think it'll be neat. It will just map to a normal function like `public static double f()`
+- I'm partially procrastinating arrays and lists, but these few things will be easier to implement so I should be able to get to them shortly. This last update was relatively large and arguably the most confusing one yet, so I'm going to first have some fun with this easy stuff then I'll get into the meat and potatoes.
+
+## Entry 8: Lists
+
+### what's new
+- **Lists:** utilizing custom java classes (`ChppArray` and `ChppMath`) now lists can be used and can be multiplied together and all that fun stuff. 
+- **Single-line Functions:** now syntax like `fun f(x) = x^2 + 3x - 1` is valid, and even works with piecewise functions.
+- **^ and more math:** the `^` operator has been added using `Math.pow`, and inverse trig is here
+
+### issues
+- With the addition of lists and my silly ambitious decision of wanting to allow native operators (`+`, `-`, etc.) to be used with them, I had to do a whole bunch of `Object` and casting shenanigans, and now the generated java code is disgusting and very unoptimized.
+- I am going to try to cut back on the complexity, probably starting with branching off of this project and then completely removing my previous system of having both `int` and `double`, and just making all numbers default to `double`. I've unfortunately kind of coded myself into a corner here, but I'm going to see what I can do. 
+- Potentially rework functions to not do polymorphism, instead just append extensions to function names so multiple of the same function can exist with different parameters to avoid the Object stuff
+
+### next steps
+- Im gonna sink in a good amount of time into this because i dont want to add too much on top of this messy stuff, just to make it impossible to fix it later
+- It is probably better anyway, because while I do understand Generalize and Instantiate and Substitute mostly, it still is kind of confusing to me and is not necessarily authentic to my own conceptual understanding

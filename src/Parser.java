@@ -107,12 +107,71 @@ public class Parser {
 
         if (match(TokenType.LEFT_BRACE)){
             block = block();
+        } else if (match(TokenType.EQUAL)){
+            List<Stmt> statements = new ArrayList<>();
+            if (match(TokenType.IF)){
+                statements.add(piecewise());
+            } else {
+                statements.add(new ReturnNode(expression()));
+            }
+            
+            block = new BlockNode(statements);
         } else {
             System.err.println("Temp error message funDeclaration() (brace)");
             return null;
         }
 
         return new FunDeclNode(name, block, parameters);
+    }
+
+    public Stmt piecewise(){
+
+        Stmt ifBlock = null;
+        Stmt elseBlock = null;
+
+        Expr condition = expression();
+
+        if (match(TokenType.LEFT_BRACE)){
+            List<Stmt> stmts = new ArrayList<>();
+            stmts.add(new ReturnNode(expression()));
+            if (match(TokenType.RIGHT_BRACE)){
+                ifBlock = new BlockNode(stmts);
+            } else {
+                System.err.println("piecewise error, missing right curly brace");
+                return null;
+            }
+        } else {
+            System.err.println("Temp error message statement() (IF2)");
+            return null;
+        }
+
+        if (match(TokenType.ELSE)){
+            if (match(TokenType.IF)){
+                elseBlock = piecewise();
+            } else if (match(TokenType.LEFT_BRACE)){
+                List<Stmt> stmts = new ArrayList<>();
+                stmts.add(new ReturnNode(expression()));
+                if (match(TokenType.RIGHT_BRACE)){
+                    elseBlock = new BlockNode(stmts);
+                } else {
+                    System.err.println("piecewise error, missing right curly brace");
+                    return null;
+                }
+            } else {
+                System.err.println("Temp error message statement() (ELSE)");
+                return null;
+            }
+        } else {
+            System.err.println("piecewise error, missing else statement");
+            return null;
+        }
+
+
+        return new IfNode(condition, ifBlock, elseBlock);
+
+        
+
+
     }
 
     public Stmt classDeclaration(){
@@ -198,9 +257,15 @@ public class Parser {
             }
 
             return new WhileNode(condition, block);
+        } else if (match(TokenType.RETURN)){
+            
+            if (check(TokenType.NEWLINE) || check(TokenType.EOF)) {
+                return new ReturnNode(null);
+            }
+            return new ReturnNode(expression());
         } else {
             Stmt stmt = new ExpressionStatementNode(expression());
-            if (match(TokenType.NEWLINE, TokenType.EOF)){
+            if (match(TokenType.NEWLINE, TokenType.EOF) || check(TokenType.RIGHT_BRACE)){
                 return stmt;
             } else {
                 System.err.println("Temp error message statement() (else)");
@@ -301,7 +366,19 @@ public class Parser {
             return new UnaryNode(right, operator);
         }
 
-        return call();
+        return exponent();
+    }
+
+    public Expr exponent(){
+        Expr expr = call();
+
+        while (match(TokenType.EXPONENT)){
+            Token operator = previous();
+            Expr right = unary();
+            expr = new BinaryNode(expr, right, operator);
+        }
+
+        return expr;
     }
 
     // parses expressions to check whether it is a function call and creating and returning a CallNode accordingly, otherwise returns primary()
@@ -324,7 +401,17 @@ public class Parser {
                 System.err.println("Temp error message call() (right paren)");
                 return null;
             }
-            
+
+        } else if (match(TokenType.LEFT_BRACK)){
+            Expr index = expression();
+
+            if (match(TokenType.RIGHT_BRACK)){
+                expr = new IndexNode(expr, index);
+                return expr;
+            }else {
+                System.err.println("Temp error message call() (right paren)");
+                return null;
+            }
 
         }
         return expr;
@@ -333,7 +420,10 @@ public class Parser {
 
     // parses expressions to return raw literals or variables
     public Expr primary(){
-        if (match(TokenType.NUMBER, TokenType.STRING, TokenType.BOOLEAN)){
+        if (match(TokenType.NUMBER, TokenType.STRING, TokenType.BOOLEAN, TokenType.NULL)){
+            if (previous().type == TokenType.NULL){
+                return new NullLiteralNode();
+            }
             return new LiteralNode(previous().literal);
         } else if (match(TokenType.IDENTIFIER)){
             return new VariableNode(previous());
@@ -345,6 +435,26 @@ public class Parser {
                 System.err.println("Missing right parenthesis for grouping statement");
                 return null;
             }
+        } else if (match(TokenType.LEFT_BRACK)){
+            if (match(TokenType.RIGHT_BRACK)){
+                return new ListNode();
+            }
+            List<Expr> elements = new ArrayList<>();
+            while(!check(TokenType.RIGHT_BRACK)){
+                if(match(TokenType.COMMA, TokenType.NEWLINE)){
+                    continue;
+                } else {
+                    elements.add(expression());
+                }
+            }
+
+            if (match(TokenType.RIGHT_BRACK)){
+                return new ListNode(elements);
+            }else {
+                System.err.println("Temp error message primary() (right bracket)");
+                return null;
+            }
+
         } else {
             System.err.println("Temp error message in primary(): Stuck on token " + peek().type + " with text '" + peek().lexeme + "' on line: " + peek().line);
             return null;

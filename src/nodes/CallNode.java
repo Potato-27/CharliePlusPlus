@@ -1,10 +1,12 @@
 package nodes;
 import java.util.List;
 import java.util.ArrayList;
+import environment.*;
 
 public class CallNode implements Expr {
     public final Expr name;
     public final List<Expr> arguments;
+    public Type inferredType = PrimitiveType.VOID;
     
     public CallNode(Expr name, List<Expr> arguments){
         this.name = name;

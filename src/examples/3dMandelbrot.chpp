@@ -1,0 +1,167 @@
+fun main() {
+    renderHighResMandelbulb()
+    return
+}
+
+fun absVal(n) {
+    if n < 0.0 {
+        return -n
+    }
+    return n
+}
+
+fun isqrt(n) {
+    if n <= 0.0 {
+        return 0.0
+    }
+    let guess = 1.5
+    let iter = 0
+    while iter < 6 {
+        guess = (guess + n / guess) * 0.5
+        iter = iter + 1
+    }
+    return guess
+}
+
+fun decimalSin(x) {
+    let pi = 3.14159265
+    let twoPi = 6.2831853
+    let normX = x % twoPi
+    if normX > pi {
+        normX = normX - twoPi
+    }
+    if normX < -pi {
+        normX = normX + twoPi
+    }
+    let x2 = normX * normX
+    let t1 = normX
+    let t2 = (normX * x2) / 6.0
+    let t3 = (normX * x2 * x2) / 120.0
+    let t4 = (normX * x2 * x2 * x2) / 5040.0
+    return t1 - t2 + t3 - t4
+}
+
+fun decimalCos(x) {
+    let halfPi = 1.57079632
+    return decimalSin(x + halfPi)
+}
+
+fun approxAtan2(y, x) {
+    if x == 0.0 & y == 0.0 {
+        return 0.0
+    }
+    let absX = absVal(x)
+    let absY = absVal(y)
+    let angle = 0.0
+    
+    if absX > absY {
+        angle = (absY * 0.785398) / absX
+    } else {
+        angle = 1.570796 - (absX * 0.785398) / absY
+    }
+    
+    if x < 0.0 {
+        if y < 0.0 {
+            return -3.141592 + angle
+        }
+        return 3.141592 - angle
+    }
+    if y < 0.0 {
+        return -angle
+    }
+    return angle
+}
+
+fun evaluateMandelbulb(sx, sy) {
+    // Zoomed bounds to fill up the screen comfortably (-1.05 to 1.05)
+    let cx = sx * 0.95
+    let cy = sy * 0.95
+    let cz = -0.15
+
+    let zx = cx
+    let zy = cy
+    let zz = cz
+
+    let iter = 0
+    // Increased max iterations to 16 for deep, razor-sharp edge definition
+    let maxIter = 16
+    let trap = 10.0
+
+    while iter < maxIter {
+        let rSq = zx * zx + zy * zy + zz * zz
+        let r = isqrt(rSq)
+        
+        if rSq > 4.0 {
+            let mask = 1.0 / (1.0 + sx * sx + sy * sy)
+            return (iter + 1.0 - (rSq / 24.0)) * mask
+        }
+
+        if r < trap {
+            trap = r
+        }
+
+        let theta = approxAtan2(isqrt(zx * zx + zy * zy), zz)
+        let phi = approxAtan2(zy, zx)
+
+        // 8th-power geometric stretching over more iterations
+        let r8 = r * r * r * r * r * r * r * r
+        let theta8 = theta * 8.0
+        let phi8 = phi * 8.0
+
+        zx = r8 * decimalSin(theta8) * decimalCos(phi8) + cx
+        zy = r8 * decimalSin(theta8) * decimalSin(phi8) + cy
+        zz = r8 * decimalCos(theta8) + cz
+
+        iter = iter + 1
+    }
+
+    return trap * 0.45
+}
+
+fun getMandelbulbColor(density) {
+    if density > 5.5 {
+        return "255;250;200" // Blazing bright star tips
+    }
+    if density > 4.0 {
+        return "255;165;50"  // Fiery golden ridges
+    }
+    if density > 2.5 {
+        return "235;65;115"  // Vibrant crimson shelves
+    }
+    if density > 1.4 {
+        return "150;50;200"  // Deep violet chasms
+    }
+    if density > 0.8 {
+        return "60;45;170"   // Outer neon boundary
+    }
+    if density > 0.3 {
+        return "25;20;75"    // Deep space fade
+    }
+    return "8;8;22"         // Dark vacuum
+}
+
+fun renderHighResMandelbulb() {
+    let sy = -1.2
+    // Cut steps in half to double the horizontal and vertical resolution!
+    let stepX = 0.013
+    let stepY = 0.013
+
+    while sy <= 1.2 {
+        let row = ""
+        let sx = -1.6
+        while sx <= 1.6 {
+            let densityTop = evaluateMandelbulb(sx, sy)
+            let densityBot = evaluateMandelbulb(sx, sy + stepY)
+
+            let topRgb = getMandelbulbColor(densityTop)
+            let botRgb = getMandelbulbColor(densityBot)
+
+            row = row + "\u001B[38;2;" + topRgb + "m\u001B[48;2;" + botRgb + "m▀"
+            sx = sx + stepX
+        }
+        row = row + "\u001B[0m"
+        print(row)
+        sy = sy + (stepY * 2.0)
+    }
+    return
+}

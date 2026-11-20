@@ -9,7 +9,7 @@ import java.util.List;
 public class Compiler {
     public static void main(String[] args) {
 
-        String fileContent = ""; 
+        String fileContent = "";
         
         // this file is largely AI generated just for the reading files aspect, the instantiation and calling of objects is all legitimate
 

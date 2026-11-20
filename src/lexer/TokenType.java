@@ -1,8 +1,8 @@
 package lexer;
 public enum TokenType{
     // symbols
-    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
-    DOT, COMMA, PLUS, MINUS, STAR, SEMICOLON, NEWLINE, SLASH, MOD,
+    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, LEFT_BRACK, RIGHT_BRACK,
+    DOT, COMMA, PLUS, MINUS, STAR, SEMICOLON, NEWLINE, SLASH, MOD, EXPONENT,
     
     //comparison
     EQUAL_EQUAL, NOT, NOT_EQUAL, EQUAL,
@@ -14,7 +14,7 @@ public enum TokenType{
     
     // keywords
     IF, ELSE, FOR, WHILE, RETURN, FUNCTION, FAYZAN, CLASS,
-    KEYWORD_LET, TRUE, FALSE,
+    KEYWORD_LET, TRUE, FALSE, NULL,
     
     //end of file marker
     EOF

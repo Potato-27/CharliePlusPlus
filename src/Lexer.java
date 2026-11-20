@@ -38,6 +38,8 @@ public class Lexer{
             case ')' -> addToken(TokenType.RIGHT_PAREN);
             case '{' -> addToken(TokenType.LEFT_BRACE);
             case '}' -> addToken(TokenType.RIGHT_BRACE);
+            case '[' -> addToken(TokenType.LEFT_BRACK);
+            case ']' -> addToken(TokenType.RIGHT_BRACK);
             case ',' -> addToken(TokenType.COMMA);
             case '.' -> addToken(TokenType.DOT);
             case '+' -> addToken(TokenType.PLUS);
@@ -45,6 +47,7 @@ public class Lexer{
             case '*' -> addToken(TokenType.STAR);
             case ';' -> addToken(TokenType.SEMICOLON);
             case '%' -> addToken(TokenType.MOD);
+            case '^' -> addToken(TokenType.EXPONENT);
             case '/' -> {
                 if (peek() == '/') {
                     advance(); 
@@ -97,7 +100,7 @@ public class Lexer{
 
     private void identifierHandler(){
         String temp;
-        while (isAlpha(peek())){
+        while (isAlpha(peek()) || isNumber(peek())){
             advance();
         }
         temp = source.substring(start, current);
@@ -112,6 +115,7 @@ public class Lexer{
             case "fayzan" -> tokens.add(new Token(temp, TokenType.FAYZAN, null, line));
             case "class" -> tokens.add(new Token(temp, TokenType.CLASS, null, line));
             case "let" -> tokens.add(new Token(temp, TokenType.KEYWORD_LET, null, line));
+            case "none" -> tokens.add(new Token(temp, TokenType.NULL, null, line));
             // boolean literals
             case "true" -> tokens.add(new Token(temp, TokenType.BOOLEAN, true, line));
             case "false" -> tokens.add(new Token(temp, TokenType.BOOLEAN, false, line));
@@ -149,6 +153,16 @@ public class Lexer{
         
         while (isNumber(peek())){
             advance();
+        }
+
+        if (peek() == '.'){
+            advance();
+            while (isNumber(peek())){
+                advance();
+            }
+            temp = source.substring(start, current);
+            tokens.add(new Token(temp, TokenType.NUMBER, Double.parseDouble(temp), line));
+            return;
         }
         temp = source.substring(start, current);
         
