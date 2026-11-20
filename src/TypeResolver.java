@@ -16,13 +16,14 @@ public class TypeResolver {
     private int nextId = 0;
     private final Map<TypeVariable, Type> substitutions = new HashMap<>();
     private Type currentReturnType = null;
+    Set<String> calledFunctions = new HashSet<>(); // Im using ai to give me advice on how to optimize it a little bit with all this new Object stuff now that lists are added
     
 
     public TypeResolver(List<Stmt> parsedCode){
         this.programAst = parsedCode;
         this.environment = new Environment();
 
-        // setting up built-in functions (e.g. print, sin)
+        // setting up built-in functions (e.g. print, sin) 
         List<Type> printArgs = new ArrayList<>();
         printArgs.add(newVariable());
         this.environment.define("print", generalize(new FunctionType(printArgs, PrimitiveType.VOID)));
@@ -34,6 +35,30 @@ public class TypeResolver {
         List<Type> cosArgs = new ArrayList<>();
         cosArgs.add(newVariable(Constraint.NUMBER));
         this.environment.define("cos", generalize(new FunctionType(cosArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> tanArgs = new ArrayList<>();
+        tanArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("tan", generalize(new FunctionType(tanArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> lnArgs = new ArrayList<>();
+        lnArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("ln", generalize(new FunctionType(lnArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> logArgs = new ArrayList<>();
+        logArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("log", generalize(new FunctionType(logArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> arcsinArgs = new ArrayList<>();
+        arcsinArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("arcsin", generalize(new FunctionType(arcsinArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> arccosArgs = new ArrayList<>();
+        arccosArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("arccos", generalize(new FunctionType(arccosArgs, PrimitiveType.DOUBLE)));
+
+        List<Type> arctanArgs = new ArrayList<>();
+        arctanArgs.add(newVariable(Constraint.NUMBER));
+        this.environment.define("arctan", generalize(new FunctionType(arctanArgs, PrimitiveType.DOUBLE)));
 
         this.environment.define("e", PrimitiveType.DOUBLE);
         this.environment.define("pi", PrimitiveType.DOUBLE);
@@ -48,7 +73,37 @@ public class TypeResolver {
         }
         
         for (Stmt node : programAst){
-            resolveStatement(node);
+            if (node instanceof FunDeclNode funNode){
+                if (funNode.name.lexeme.equals("main")){
+                    continue;
+                }
+                resolveStatement(node);
+            }
+        }
+
+        for (Stmt node : programAst){
+            if (node instanceof FunDeclNode funNode){
+                if (funNode.name.lexeme.equals("main")){
+                    resolveStatement(node);
+                }
+            } else {
+                resolveStatement(node);
+            }
+        }
+
+        for (Stmt node : programAst){
+            if (node instanceof FunDeclNode funNode){
+                if (!calledFunctions.contains(funNode.name.lexeme)){
+                    Scheme scheme = (Scheme) environment.lookup(funNode.name.lexeme);
+                    FunctionType funType = (FunctionType)scheme.type;
+                    for (Type arg : funType.args){
+                        Type pruned = prune(arg);
+                        if (pruned instanceof TypeVariable typeVar && (typeVar.constraint == Constraint.NUMBER || typeVar.constraint == Constraint.NONE)){
+                            unify(typeVar, PrimitiveType.DOUBLE);
+                        }
+                    }
+                }
+            }
         }
 
         finalizeEnv(this.environment);
@@ -193,20 +248,39 @@ public class TypeResolver {
             
             Type leftType = resolveExpression(binaryNode.left);
             Type rightType = resolveExpression(binaryNode.right);
+            binaryNode.leftType = leftType;
+            binaryNode.rightType = rightType;
 
 
-            if (List.of("-", "*", "/", "%").contains(binaryNode.operator.lexeme)){
+            if (List.of("-", "*", "/", "%", "^").contains(binaryNode.operator.lexeme)){
                 
+
+
                 Type resultType = newVariable(Constraint.NUMBER);
                 Type newVarLeft = newVariable(Constraint.NUMBER);
                 Type newVarRight = newVariable(Constraint.NUMBER);
                 unify(leftType, newVarLeft);
                 unify(rightType, newVarRight);
-                if (prune(leftType)==PrimitiveType.DOUBLE || prune(rightType)==PrimitiveType.DOUBLE){
+
+                Type left = prune(leftType);
+                Type right = prune(rightType);
+                if (left instanceof ListType && right instanceof ListType){
+                    unify(left, right);
+                    unify(resultType, doubleBase((ListType) left));
+                } else if (left instanceof ListType){
+                    unify(resultType, doubleBase((ListType) left));
+                } else if (right instanceof ListType){
+                    unify(resultType, doubleBase((ListType) right));
+                } else if (binaryNode.operator.lexeme.equals("^")){
+                    unify(resultType, PrimitiveType.DOUBLE);
+                } else if (left instanceof TypeVariable || right instanceof TypeVariable){
+                    // whats up everyone this is a secret empty else if statement
+                } else if (prune(leftType)==PrimitiveType.DOUBLE || prune(rightType)==PrimitiveType.DOUBLE){
                     unify(resultType, PrimitiveType.DOUBLE);
                 } else if (prune(leftType) == PrimitiveType.INT && prune(rightType) == PrimitiveType.INT){
                     unify(resultType, PrimitiveType.INT);
                 }
+                binaryNode.inferredType = resultType;
                 return resultType;
             } else if (binaryNode.operator.lexeme.equals("+")){
                 Type resultType = newVariable(Constraint.ADDABLE);
@@ -214,26 +288,48 @@ public class TypeResolver {
                 Type newVarRight = newVariable(Constraint.ADDABLE);
                 unify(leftType, newVarLeft);
                 unify(rightType, newVarRight);
-                if (prune(leftType) == PrimitiveType.STRING || prune(rightType) == PrimitiveType.STRING){
+
+                Type left = prune(leftType);
+                Type right = prune(rightType);
+                if (left instanceof ListType && right instanceof ListType){
+                    if (getBaseType(left) == PrimitiveType.STRING){
+                        unify(resultType, left);
+                    } else {
+                        unify(resultType, doubleBase((ListType) left));
+                    }
+                    
+                } else if (left instanceof ListType){
+                    unify(right, newVariable(Constraint.NUMBER));
+                    unify(resultType, doubleBase((ListType) left));
+                } else if (right instanceof ListType){
+                    unify(left, newVariable(Constraint.NUMBER));
+                    unify(resultType, doubleBase((ListType) right));
+                } else if (left instanceof TypeVariable || right instanceof TypeVariable){
+                    // whats up everyone this is a secret empty else if statement (the sequel)
+                } else if (prune(leftType) == PrimitiveType.STRING || prune(rightType) == PrimitiveType.STRING){
                     unify(resultType, PrimitiveType.STRING);
                 } else if (prune(leftType)==PrimitiveType.DOUBLE || prune(rightType)==PrimitiveType.DOUBLE){
                     unify(resultType, PrimitiveType.DOUBLE);
                 } else if (prune(leftType) == PrimitiveType.INT && prune(rightType) == PrimitiveType.INT){
                     unify(resultType, PrimitiveType.INT);
                 }
+                binaryNode.inferredType = resultType;
                 return resultType;
 
             } else if (List.of(">", "<", "<=", ">=").contains(binaryNode.operator.lexeme)){
                 
                 unify(leftType, newVariable(Constraint.NUMBER));
                 unify(rightType, newVariable(Constraint.NUMBER));
+                binaryNode.inferredType = PrimitiveType.BOOLEAN;
                 return PrimitiveType.BOOLEAN;
             } else if (binaryNode.operator.lexeme.equals("==") || binaryNode.operator.lexeme.equals("!=")){
                 unify(leftType, rightType);
+                binaryNode.inferredType = PrimitiveType.BOOLEAN;
                 return PrimitiveType.BOOLEAN;
             } else if (binaryNode.operator.lexeme.equals("&&") || binaryNode.operator.lexeme.equals("||")){
                 unify(leftType, PrimitiveType.BOOLEAN);
                 unify(rightType, PrimitiveType.BOOLEAN);
+                binaryNode.inferredType = PrimitiveType.BOOLEAN;
                 return PrimitiveType.BOOLEAN;
             }
         } else if (expr instanceof UnaryNode unaryNode){
@@ -247,9 +343,11 @@ public class TypeResolver {
                 } else if (prune(rightType) == PrimitiveType.DOUBLE){
                     unify(resultType, PrimitiveType.DOUBLE);
                 }
+                unaryNode.inferredType = resultType;
                 return resultType;
             } else if (unaryNode.operator.lexeme.equals("!")){
                 unify(rightType, PrimitiveType.BOOLEAN);
+                unaryNode.inferredType = PrimitiveType.BOOLEAN;
                 return PrimitiveType.BOOLEAN;
             }
         } else if (expr instanceof GroupingNode){
@@ -266,6 +364,9 @@ public class TypeResolver {
             Type expectedFunctionType = new FunctionType(args, returnType);
             unify(calleeType, expectedFunctionType);
             callNode.inferredType = returnType;
+            if (callNode.name instanceof VariableNode varNode){
+                calledFunctions.add(varNode.identifier.lexeme);
+            }
             return returnType;
         } else if (expr instanceof AssignmentNode){
             AssignmentNode assignmentNode = (AssignmentNode) expr;
@@ -273,10 +374,47 @@ public class TypeResolver {
             Type valType = resolveExpression(assignmentNode.value);
             unify(varType, valType);
             return valType;
+        } else if (expr instanceof ListNode listNode){
+            if (listNode.list.isEmpty()){
+                return new ListType(newVariable());
+            }
+            Type elemType = newVariable();
+            for (Expr expr2 : listNode.list){
+                unify(elemType, resolveExpression(expr2));
+            }
+            return new ListType(elemType);
+        } else if (expr instanceof IndexNode indexNode){
+            Type targetType = resolveExpression(indexNode.target);
+            Type indexType = resolveExpression(indexNode.index);
+            unify(indexType, PrimitiveType.INT);
+            Type elemType = newVariable();
+            unify(targetType, new ListType(elemType));
+            indexNode.inferredType = elemType;
+            return elemType;
         }
 
         return null; 
     }
+
+    // helper methods for lists
+    //returns the base type of a list, like INT if the list passed is List<List<INT>>
+    public Type getBaseType(Type t){
+        while (t instanceof ListType list){
+            t = prune(list.elementType);
+        }
+        return t;
+    }
+
+    // Makes the base type of a list into a double for clean math operations
+    public ListType doubleBase(ListType t){
+        if (t.elementType instanceof ListType listType){
+            return new ListType(doubleBase(listType));
+        } else {
+            return new ListType(PrimitiveType.DOUBLE); 
+        }
+    }
+
+
 
     // goes through the substitutions list to find the last type value which a chain of types point to (i.e. T0 -> T1 and T1 -> int, so T0 -> int)
     public Type prune(Type type){
@@ -286,6 +424,9 @@ public class TypeResolver {
             } else {
                 return type;
             }
+        } else if (type instanceof ListType){
+            Type type2 = ((ListType) type).elementType;
+            return new ListType(prune(type2));
         } else {
             return type;
         }
@@ -300,7 +441,6 @@ public class TypeResolver {
         } else {
             if (t1 instanceof TypeVariable){
                 
-                
                 if (occursIn((TypeVariable) t1, t2)){
                     System.err.println("Cyclic type infinite loop");
                     System.exit(0);
@@ -314,10 +454,19 @@ public class TypeResolver {
                         substitutions.put((TypeVariable) t1, t2);
                         return;
                     } else {
-                        if (((TypeVariable) t1).constraint == Constraint.NUMBER && (t2 == PrimitiveType.INT || t2 == PrimitiveType.DOUBLE)){
+                        Type base = getBaseType(t2);
+                        if (base instanceof TypeVariable baseVar){
+                            if (baseVar.constraint == Constraint.NONE){
+                                baseVar.constraint = ((TypeVariable)t1).constraint;
+                            }
+                            substitutions.put((TypeVariable)t1, t2);
+                            return;
+                        }
+
+                        if (((TypeVariable) t1).constraint == Constraint.NUMBER && (base == PrimitiveType.INT || base == PrimitiveType.DOUBLE)){
                             substitutions.put((TypeVariable) t1, t2);
                             return;
-                        } else if (((TypeVariable) t1).constraint == Constraint.ADDABLE && (t2 == PrimitiveType.INT || t2 == PrimitiveType.DOUBLE || t2 == PrimitiveType.STRING)){
+                        } else if (((TypeVariable) t1).constraint == Constraint.ADDABLE && (base == PrimitiveType.INT || base == PrimitiveType.DOUBLE || base == PrimitiveType.STRING)){
                             substitutions.put((TypeVariable) t1, t2);
                             return;
                         } else {
@@ -345,10 +494,18 @@ public class TypeResolver {
                         substitutions.put((TypeVariable) t2, t1);
                         return;
                     } else {
-                        if (((TypeVariable) t2).constraint == Constraint.NUMBER && (t1 == PrimitiveType.INT || t1 == PrimitiveType.DOUBLE)){
+                        Type base = getBaseType(t1);
+                        if (base instanceof TypeVariable baseVar){
+                            if (baseVar.constraint == Constraint.NONE){
+                                baseVar.constraint = ((TypeVariable)t2).constraint;
+                            }
+                            substitutions.put((TypeVariable)t2, t1);
+                            return;
+                        }
+                        if (((TypeVariable) t2).constraint == Constraint.NUMBER && (base == PrimitiveType.INT || base == PrimitiveType.DOUBLE)){
                             substitutions.put((TypeVariable) t2, t1);
                             return;
-                        } else if (((TypeVariable) t2).constraint == Constraint.ADDABLE && (t1 == PrimitiveType.INT || t1 == PrimitiveType.DOUBLE || t1 == PrimitiveType.STRING)){
+                        } else if (((TypeVariable) t2).constraint == Constraint.ADDABLE && (base == PrimitiveType.INT || base == PrimitiveType.DOUBLE || base == PrimitiveType.STRING)){
                             substitutions.put((TypeVariable) t2, t1);
                             return;
                         } else {
@@ -374,13 +531,18 @@ public class TypeResolver {
                     unify(ft1.returnType, ft2.returnType);
                     return;
                 }
-            } else {
+            } else if (t1 instanceof ListType && t2 instanceof ListType){
+                ListType lt1 = (ListType) t1;
+                ListType lt2 = (ListType) t2;
+                unify(lt1.elementType, lt2.elementType);
+                return;
+            } else  {
                 if (t1 == PrimitiveType.DOUBLE && t2 == PrimitiveType.INT){
                     return;
                 }
                 System.err.println("Type error: Cannot unify " + t1 + " with " + t2);
                 System.exit(1);
-            }
+            } 
         }
     }
 
@@ -405,6 +567,9 @@ public class TypeResolver {
                 return true;
             }
             return false;
+        } else if (type instanceof ListType){
+            ListType listType = (ListType) type;
+            return occursIn(var, listType.elementType);
         } else {
             return false;
         }
@@ -482,7 +647,13 @@ public class TypeResolver {
             for (Expr arg : callNode.arguments){
                 finalizeExpr(arg);
             }
+        } else if (expr instanceof IndexNode indexNode){
+            indexNode.inferredType = prune(indexNode.inferredType);
+            finalizeExpr(indexNode.target);
         } else if (expr instanceof BinaryNode node){
+            node.leftType = prune(node.leftType);
+            node.rightType = prune(node.rightType);
+            node.inferredType = prune(node.inferredType);
             finalizeExpr(node.left);
             finalizeExpr(node.right);
         } else if (expr instanceof GroupingNode node){
@@ -490,13 +661,17 @@ public class TypeResolver {
         } else if (expr instanceof AssignmentNode node){
             finalizeExpr(node.value);
         } else if (expr instanceof UnaryNode node){
+            node.inferredType = prune(node.inferredType);
             finalizeExpr(node.right);
+        } else if (expr instanceof ListNode node){
+            for (Expr expr2 : node.list){
+                finalizeExpr(expr2);
+            }
         }
     }
 
     public Set<TypeVariable> obtainVars(Type type){
         
-
         Type pruned = prune(type);
         if (pruned instanceof TypeVariable typeVariable){
             Set<TypeVariable> vars = new HashSet<>();
@@ -515,6 +690,10 @@ public class TypeResolver {
         } else if (pruned instanceof Scheme scheme){
             Set<TypeVariable> vars = obtainVars(scheme.type);
             vars.removeAll(scheme.bounds);
+            return vars;
+        } else if (pruned instanceof ListType listType){
+            Set<TypeVariable> vars = new HashSet<>();
+            vars.addAll(obtainVars(listType.elementType));
             return vars;
         }
 
@@ -571,6 +750,8 @@ public class TypeResolver {
             return new FunctionType(args, returnType);
         } else if (pruned instanceof PrimitiveType){
             return pruned;
+        } else if (pruned instanceof ListType listType){
+            return new ListType(substitute(listType.elementType, mapping));
         }
 
         return newVariable();

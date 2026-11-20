@@ -38,6 +38,8 @@ public class Lexer{
             case ')' -> addToken(TokenType.RIGHT_PAREN);
             case '{' -> addToken(TokenType.LEFT_BRACE);
             case '}' -> addToken(TokenType.RIGHT_BRACE);
+            case '[' -> addToken(TokenType.LEFT_BRACK);
+            case ']' -> addToken(TokenType.RIGHT_BRACK);
             case ',' -> addToken(TokenType.COMMA);
             case '.' -> addToken(TokenType.DOT);
             case '+' -> addToken(TokenType.PLUS);
@@ -45,6 +47,7 @@ public class Lexer{
             case '*' -> addToken(TokenType.STAR);
             case ';' -> addToken(TokenType.SEMICOLON);
             case '%' -> addToken(TokenType.MOD);
+            case '^' -> addToken(TokenType.EXPONENT);
             case '/' -> {
                 if (peek() == '/') {
                     advance(); 

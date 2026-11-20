@@ -1,6 +1,294 @@
-f(x) = 2*x
+// ============================================================
+// Charlie++ 3D Reflective Torus & Twin Neon Lights
+// Exercises: Real raytraced reflections, Fresnel glow,
+//            sin, cos, ^, pi, and one-line SDF functions
+// ============================================================
 
-fun main(){
-    print(f(3))
+// 1. One-line piecewise & vector math helpers
+fun clamp(v, lo, hi) = if v < lo { lo } else if v > hi { hi } else { v }
+fun maxVal(a, b) = if a > b { a } else { b }
+fun minVal(a, b) = if a < b { a } else { b }
+fun absVal(x) = if x < 0.0 { -x } else { x }
+
+fun length2(x, y) = (x ^ 2 + y ^ 2) ^ 0.5
+fun length3(x, y, z) = (x ^ 2 + y ^ 2 + z ^ 2) ^ 0.5
+
+// 2. Signed Distance Functions (SDFs)
+// Tilted 3D Torus (donut) floating above the floor
+fun sdTorus(px, py, pz) {
+    // Shift center to (0.0, 0.25, 3.0)
+    let x = px
+    let y = py - 0.25
+    let z = pz - 3.0
+
+    // Tilt around X-axis by ~32 degrees (0.56 rad)
+    let c1 = cos(0.56)
+    let s1 = sin(0.56)
+    let ry = y * c1 - z * s1
+    let rz = y * s1 + z * c1
+
+    // Tilt around Z-axis by ~20 degrees (0.35 rad)
+    let c2 = cos(0.35)
+    let s2 = sin(0.35)
+    let fx = x * c2 - ry * s2
+    let fy = x * s2 + ry * c2
+
+    // Torus major radius = 0.85, minor tube radius = 0.30
+    let qx = length2(fx, rz) - 0.85
+    return length2(qx, fy) - 0.30
 }
 
+// Flat mirror-like floor at y = -0.85
+fun sdFloor(px, py, pz) = py + 0.85
+
+// Combined scene distance
+fun mapScene(px, py, pz) = minVal(sdTorus(px, py, pz), sdFloor(px, py, pz))
+
+// 3. Raymarching loop
+fun march(roX, roY, roZ, rdX, rdY, rdZ) {
+    let t = 0.0
+    let steps = 0
+    while steps < 72 {
+        let px = roX + rdX * t
+        let py = roY + rdY * t
+        let pz = roZ + rdZ * t
+        let d = mapScene(px, py, pz)
+        if d < 0.0015 {
+            return t
+        }
+        t = t + d
+        if t > 20.0 {
+            return -1.0
+        }
+        steps = steps + 1
+    }
+    return -1.0
+}
+
+// 4. Soft shadows
+fun calcShadow(roX, roY, roZ, rdX, rdY, rdZ) {
+    let res = 1.0
+    let t = 0.03
+    let steps = 0
+    while steps < 28 {
+        let h = mapScene(roX + rdX * t, roY + rdY * t, roZ + rdZ * t)
+        if h < 0.001 {
+            return 0.12
+        }
+        res = minVal(res, (12.0 * h) / t)
+        t = t + clamp(h, 0.02, 0.35)
+        steps = steps + 1
+    }
+    return clamp(res, 0.12, 1.0)
+}
+
+// 5. Shades a hit point (used for BOTH primary rays AND bounced reflection rays!)
+fun shadeHit(px, py, pz, rdX, rdY, rdZ) {
+    // Compute surface normal
+    let eps = 0.0015
+    let nx = mapScene(px + eps, py, pz) - mapScene(px - eps, py, pz)
+    let ny = mapScene(px, py + eps, pz) - mapScene(px, py - eps, pz)
+    let nz = mapScene(px, py, pz + eps) - mapScene(px, py, pz - eps)
+    let nLen = length3(nx, ny, nz)
+    nx = nx / nLen
+    ny = ny / nLen
+    nz = nz / nLen
+
+    // Warm key light (top-left-front)
+    let l1x = -0.577
+    let l1y = 0.707
+    let l1z = -0.408
+
+    // Cool cyan rim light (right-back)
+    let l2x = 0.65
+    let l2y = 0.45
+    let l2z = 0.61
+
+    let diff1 = maxVal(nx * l1x + ny * l1y + nz * l1z, 0.0)
+    let diff2 = maxVal(nx * l2x + ny * l2y + nz * l2z, 0.0)
+
+    // Specular highlight from key light
+    let hx = l1x - rdX
+    let hy = l1y - rdY
+    let hz = l1z - rdZ
+    let hLen = length3(hx, hy, hz)
+    let spec = maxVal((nx * hx + ny * hy + nz * hz) / hLen, 0.0) ^ 32
+
+    // Fresnel edge glow (brightens grazing angles)
+    let ndotv = clamp(-(nx * rdX + ny * rdY + nz * rdZ), 0.0, 1.0)
+    let fresnel = (1.0 - ndotv) ^ 3
+
+    let shadow = calcShadow(px + nx * 0.01, py + ny * 0.01, pz + nz * 0.01, l1x, l1y, l1z)
+
+    // Determine surface color
+    let r = 0.0
+    let g = 0.0
+    let b = 0.0
+
+    if sdTorus(px, py, pz) < sdFloor(px, py, pz) {
+        // Chrome-magenta & electric-cyan iridescent torus
+        let band = 0.5 + 0.5 * sin(px * 5.0 + py * 4.0 + pz * 3.0)
+        let baseR = 210.0 * band + 40.0 * (1.0 - band)
+        let baseG = 55.0 * band + 215.0 * (1.0 - band)
+        let baseB = 195.0 * band + 250.0 * (1.0 - band)
+
+        r = baseR * (0.20 + diff1 * 0.85 * shadow) + 40.0 * diff2 + 255.0 * spec * shadow + 140.0 * fresnel
+        g = baseG * (0.20 + diff1 * 0.85 * shadow) + 160.0 * diff2 + 255.0 * spec * shadow + 210.0 * fresnel
+        b = baseB * (0.20 + diff1 * 0.85 * shadow) + 230.0 * diff2 + 255.0 * spec * shadow + 255.0 * fresnel
+    } else {
+        // Perspective checkerboard floor with radial distance fade
+        let check = sin(px * pi * 2.0) * sin(pz * pi * 2.0)
+        let tile = 0.22
+        if check > 0.0 {
+            tile = 0.85
+        }
+        let fade = clamp(1.0 - (pz / 16.0), 0.0, 1.0)
+        let light = (0.22 + diff1 * 0.85 * shadow) * fade
+        r = (35.0 + 175.0 * tile) * light + 18.0 * (1.0 - fade)
+        g = (45.0 + 185.0 * tile) * light + 22.0 * (1.0 - fade)
+        b = (75.0 + 180.0 * tile) * light + 48.0 * (1.0 - fade)
+    }
+
+    // Pack whole integer RGB channels into a single double (R * 65536 + G * 256 + B)
+    let ir = 0
+    let ig = 0
+    let ib = 0
+    let cr = clamp(r, 0.0, 255.0)
+    let cg = clamp(g, 0.0, 255.0)
+    let cb = clamp(b, 0.0, 255.0)
+    while ir + 1 <= cr { ir = ir + 1 }
+    while ig + 1 <= cg { ig = ig + 1 }
+    while ib + 1 <= cb { ib = ib + 1 }
+
+    return (ir * 65536.0) + (ig * 256.0) + ib
+}
+
+// 6. Sky background color (packed integer RGB)
+fun skyColor(v) {
+    let t = clamp(v * 0.9 + 0.35, 0.0, 1.0)
+    let sr = 14.0 + 38.0 * (1.0 - t)
+    let sg = 18.0 + 55.0 * (1.0 - t)
+    let sb = 46.0 + 125.0 * (1.0 - t)
+
+    let ir = 0
+    let ig = 0
+    let ib = 0
+    while ir + 1 <= sr { ir = ir + 1 }
+    while ig + 1 <= sg { ig = ig + 1 }
+    while ib + 1 <= sb { ib = ib + 1 }
+    return (ir * 65536.0) + (ig * 256.0) + ib
+}
+
+// 7. Unpacks an integer-packed RGB double straight to ANSI "r;g;b"
+fun unpackRgb(packed) {
+    let r = (packed - (packed % 65536.0)) / 65536.0
+    let rem = packed % 65536.0
+    let g = (rem - (rem % 256.0)) / 256.0
+    let b = rem % 256.0
+
+    let ir = 0
+    let ig = 0
+    let ib = 0
+    while ir + 1 <= r { ir = ir + 1 }
+    while ig + 1 <= g { ig = ig + 1 }
+    while ib + 1 <= b { ib = ib + 1 }
+    return "" + ir + ";" + ig + ";" + ib
+}
+
+// 8. Traces primary ray + 1 bounce reflection ray and returns ANSI "r;g;b"
+fun tracePixel(u, v) {
+    let len = length3(u, v, 1.45)
+    let rdX = u / len
+    let rdY = v / len
+    let rdZ = 1.45 / len
+
+    let dist = march(0.0, 0.25, 0.0, rdX, rdY, rdZ)
+    if dist < 0.0 {
+        return unpackRgb(skyColor(v))
+    }
+
+    let px = rdX * dist
+    let py = 0.25 + rdY * dist
+    let pz = rdZ * dist
+
+    let primaryPacked = shadeHit(px, py, pz, rdX, rdY, rdZ)
+
+    // Compute surface normal again to bounce a reflection ray
+    let eps = 0.0015
+    let nx = mapScene(px + eps, py, pz) - mapScene(px - eps, py, pz)
+    let ny = mapScene(px, py + eps, pz) - mapScene(px, py - eps, pz)
+    let nz = mapScene(px, py, pz + eps) - mapScene(px, py, pz - eps)
+    let nLen = length3(nx, ny, nz)
+    nx = nx / nLen
+    ny = ny / nLen
+    nz = nz / nLen
+
+    // Reflected ray direction: R = D - 2 * dot(D, N) * N
+    let dotDN = rdX * nx + rdY * ny + rdZ * nz
+    let refX = rdX - 2.0 * dotDN * nx
+    let refY = rdY - 2.0 * dotDN * ny
+    let refZ = rdZ - 2.0 * dotDN * nz
+
+    let refDist = march(px + nx * 0.015, py + ny * 0.015, pz + nz * 0.015, refX, refY, refZ)
+    let refPacked = 0.0
+    if refDist < 0.0 {
+        refPacked = skyColor(refY)
+    } else {
+        let rpx = px + nx * 0.015 + refX * refDist
+        let rpy = py + ny * 0.015 + refY * refDist
+        let rpz = pz + nz * 0.015 + refZ * refDist
+        refPacked = shadeHit(rpx, rpy, rpz, refX, refY, refZ)
+    }
+
+    // Torus is 45% reflective chrome; floor is 28% glossy mirror
+    let reflectivity = 0.28
+    if sdTorus(px, py, pz) < sdFloor(px, py, pz) {
+        reflectivity = 0.45
+    }
+
+    // Unpack both integer colors and blend them
+    let r1 = (primaryPacked - (primaryPacked % 65536.0)) / 65536.0
+    let rem1 = primaryPacked % 65536.0
+    let g1 = (rem1 - (rem1 % 256.0)) / 256.0
+    let b1 = rem1 % 256.0
+
+    let r2 = (refPacked - (refPacked % 65536.0)) / 65536.0
+    let rem2 = refPacked % 65536.0
+    let g2 = (rem2 - (rem2 % 256.0)) / 256.0
+    let b2 = rem2 % 256.0
+
+    let finalR = r1 * (1.0 - reflectivity) + r2 * reflectivity
+    let finalG = g1 * (1.0 - reflectivity) + g2 * reflectivity
+    let finalB = b1 * (1.0 - reflectivity) + b2 * reflectivity
+
+    // Floor blended channels to whole integers directly before formatting
+    let ir = 0
+    let ig = 0
+    let ib = 0
+    while ir + 1 <= finalR { ir = ir + 1 }
+    while ig + 1 <= finalG { ig = ig + 1 }
+    while ib + 1 <= finalB { ib = ib + 1 }
+
+    return "" + ir + ";" + ig + ";" + ib
+}
+
+fun main() {
+    let stepX = 0.015
+    let stepY = 0.015
+    let y = 0.65
+
+    while y >= -0.65 {
+        let row = ""
+        let x = -1.25
+        while x <= 1.25 {
+            let topRgb = tracePixel(x, y)
+            let botRgb = tracePixel(x, y - stepY)
+            row = row + "\u001B[38;2;" + topRgb + "m\u001B[48;2;" + botRgb + "m▀"
+            x = x + stepX
+        }
+        row = row + "\u001B[0m"
+        print(row)
+        y = y - (stepY * 2.0)
+    }
+    return
+}

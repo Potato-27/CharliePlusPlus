@@ -1,0 +1,190 @@
+// ============================================================
+// Charlie++ 3D Raymarcher (Sphere + Warped Terrain + Lighting)
+// Exercises: sin, cos, ln, ^, pi, e, one-line functions,
+//            piecewise expressions, and polymorphic helpers
+// ============================================================
+
+// 1. Polymorphic helper (tests Hindley-Milner generalize/instantiate!)
+fun id(x) = x
+
+// 2. One-line piecewise & math utility functions
+fun clamp(v, lo, hi) = if v < lo { lo } else if v > hi { hi } else { v }
+fun maxVal(a, b) = if a > b { a } else { b }
+fun minVal(a, b) = if a < b { a } else { b }
+fun absVal(x) = if x < 0.0 { -x } else { x }
+
+// Euclidean vector length using exponents (^)
+fun length3(x, y, z) = (x ^ 2 + y ^ 2 + z ^ 2) ^ 0.5
+
+// Smooth logarithmic fog falloff using ln() and e
+fun fogFactor(dist) = clamp(1.0 - (ln(1.0 + dist) / ln(1.0 + 18.0)), 0.0, 1.0)
+
+// 3. Signed Distance Functions (SDFs) for our 3D scene
+// Floating sphere centered at (0.0, 0.35, 3.2) with radius 1.15
+fun sdSphere(px, py, pz) = length3(px, py - 0.35, pz - 3.2) - 1.15
+
+// Rippling wave floor at y = -0.85 using sin & cos
+fun sdFloor(px, py, pz) = py + 0.85 + 0.14 * sin(px * 2.2 + pz * 1.4) * cos(pz * 2.0 - px * 1.1)
+
+// Combined scene distance
+fun mapScene(px, py, pz) = minVal(sdSphere(px, py, pz), sdFloor(px, py, pz))
+
+// 4. Raymarching loop (steps along ray until hitting a surface)
+fun march(roX, roY, roZ, rdX, rdY, rdZ) {
+    let t = 0.0
+    let steps = 0
+    while steps < 64 {
+        let px = roX + rdX * t
+        let py = roY + rdY * t
+        let pz = roZ + rdZ * t
+        let d = mapScene(px, py, pz)
+        if d < 0.002 {
+            return t
+        }
+        t = t + d
+        if t > 18.0 {
+            return -1.0
+        }
+        steps = steps + 1
+    }
+    return -1.0
+}
+
+// 5. Soft shadow marching toward the light source
+fun calcShadow(roX, roY, roZ, rdX, rdY, rdZ) {
+    let res = 1.0
+    let t = 0.04
+    let steps = 0
+    while steps < 28 {
+        let h = mapScene(roX + rdX * t, roY + rdY * t, roZ + rdZ * t)
+        if h < 0.001 {
+            return 0.15
+        }
+        res = minVal(res, (10.0 * h) / t)
+        t = t + clamp(h, 0.02, 0.35)
+        steps = steps + 1
+    }
+    return clamp(res, 0.15, 1.0)
+}
+
+// 6. Computes RGB color for a single camera ray
+fun tracePixel(u, v) {
+    // Camera at origin looking down +Z
+    let len = length3(u, v, 1.35)
+    let rdX = u / len
+    let rdY = v / len
+    let rdZ = 1.35 / len
+
+    let dist = march(0.0, 0.15, 0.0, rdX, rdY, rdZ)
+
+    // Sky gradient + glowing sun when ray misses geometry
+    if dist < 0.0 {
+        let skyT = clamp(v * 0.8 + 0.35, 0.0, 1.0)
+        let sr = 18.0 + 45.0 * (1.0 - skyT)
+        let sg = 24.0 + 95.0 * (1.0 - skyT)
+        let sb = 58.0 + 165.0 * (1.0 - skyT)
+        return encodeRgb(sr, sg, sb)
+    }
+
+    // Hit position
+    let px = rdX * dist
+    let py = 0.15 + rdY * dist
+    let pz = rdZ * dist
+
+    // Estimate surface normal via central finite differences
+    let eps = 0.002
+    let nx = mapScene(px + eps, py, pz) - mapScene(px - eps, py, pz)
+    let ny = mapScene(px, py + eps, pz) - mapScene(px, py - eps, pz)
+    let nz = mapScene(px, py, pz + eps) - mapScene(px, py, pz - eps)
+    let nLen = length3(nx, ny, nz)
+    nx = nx / nLen
+    ny = ny / nLen
+    nz = nz / nLen
+
+    // Directional key light position (normalized)
+    let lx = -0.577
+    let ly = 0.707
+    let lz = -0.408
+
+    // Diffuse + specular highlights using ^
+    let diff = maxVal(nx * lx + ny * ly + nz * lz, 0.0)
+    let hx = lx - rdX
+    let hy = ly - rdY
+    let hz = lz - rdZ
+    let hLen = length3(hx, hy, hz)
+    let spec = maxVal((nx * hx + ny * hy + nz * hz) / hLen, 0.0) ^ 24
+
+    // Soft shadow factor
+    let shadow = calcShadow(px + nx * 0.01, py + ny * 0.01, pz + nz * 0.01, lx, ly, lz)
+
+    // Material color: iridescent sphere vs. procedural sine-wave floor
+    let baseR = 0.0
+    let baseG = 0.0
+    let baseB = 0.0
+
+    if sdSphere(px, py, pz) < sdFloor(px, py, pz) {
+        // Metallic coral-gold sphere with trigonometric marbling
+        let swirl = 0.5 + 0.5 * sin(px * 6.0 + py * 5.0 + cos(pz * 6.0) * pi)
+        baseR = 235.0 - 45.0 * swirl
+        baseG = 95.0 + 115.0 * swirl
+        baseB = 130.0 + 80.0 * (1.0 - swirl)
+    } else {
+        // Procedural tiled wave floor
+        let pattern = sin(px * pi * 1.5) * cos(pz * pi * 1.5)
+        let stripe = 0.45
+        if pattern > 0.0 {
+            stripe = 1.0
+        }
+        baseR = 40.0 * stripe
+        baseG = 165.0 * stripe
+        baseB = 195.0 * stripe
+    }
+
+    // Combine ambient, diffuse, specular, shadow, and logarithmic fog
+    let light = 0.18 + (diff * 0.85 * shadow)
+    let fog = fogFactor(dist)
+
+    let r = (baseR * light + 210.0 * spec * shadow) * fog + 22.0 * (1.0 - fog)
+    let g = (baseG * light + 220.0 * spec * shadow) * fog + 34.0 * (1.0 - fog)
+    let b = (baseB * light + 245.0 * spec * shadow) * fog + 68.0 * (1.0 - fog)
+
+    return encodeRgb(r, g, b)
+}
+
+// Converts double RGB channels into integer ANSI "r;g;b" string
+fun encodeRgb(r, g, b) {
+    let ir = 0
+    let ig = 0
+    let ib = 0
+    let cr = clamp(r, 0.0, 255.0)
+    let cg = clamp(g, 0.0, 255.0)
+    let cb = clamp(b, 0.0, 255.0)
+
+    // Integer conversion loop (tests int/double separation in Charlie++)
+    while ir + 1 <= cr { ir = ir + 1 }
+    while ig + 1 <= cg { ig = ig + 1 }
+    while ib + 1 <= cb { ib = ib + 1 }
+
+    return id("") + id(ir) + ";" + ig + ";" + ib
+}
+
+fun main() {
+    let stepX = 0.016
+    let stepY = 0.016
+    let y = 0.65
+
+    while y >= -0.65 {
+        let row = ""
+        let x = -1.25
+        while x <= 1.25 {
+            let topRgb = tracePixel(x, y)
+            let botRgb = tracePixel(x, y - stepY)
+            row = row + "\u001B[38;2;" + topRgb + "m\u001B[48;2;" + botRgb + "m▀"
+            x = x + stepX
+        }
+        row = row + "\u001B[0m"
+        print(row)
+        y = y - (stepY * 2.0)
+    }
+    return
+}

@@ -106,3 +106,19 @@ Recently schoolwork has been pretty draining and it's been eating all of my free
 - More built-in math stuff, like the `^` operator for exponents, which will utilize `Math.pow()` in java. I also would like to add implicit multiplication, like if the variable `x` is defined and you want to write `let y = 3x + 1`.
 - More math related stuff I want to add single-line function definitions so things like `f(x) = x^2 + 3x - 1` are valid syntax, I think it'll be neat. It will just map to a normal function like `public static double f()`
 - I'm partially procrastinating arrays and lists, but these few things will be easier to implement so I should be able to get to them shortly. This last update was relatively large and arguably the most confusing one yet, so I'm going to first have some fun with this easy stuff then I'll get into the meat and potatoes.
+
+## Entry 8: Lists
+
+### what's new
+- **Lists:** utilizing custom java classes (`ChppArray` and `ChppMath`) now lists can be used and can be multiplied together and all that fun stuff. 
+- **Single-line Functions:** now syntax like `fun f(x) = x^2 + 3x - 1` is valid, and even works with piecewise functions.
+- **^ and more math:** the `^` operator has been added using `Math.pow`, and inverse trig is here
+
+### issues
+- With the addition of lists and my silly ambitious decision of wanting to allow native operators (`+`, `-`, etc.) to be used with them, I had to do a whole bunch of `Object` and casting shenanigans, and now the generated java code is disgusting and very unoptimized.
+- I am going to try to cut back on the complexity, probably starting with branching off of this project and then completely removing my previous system of having both `int` and `double`, and just making all numbers default to `double`. I've unfortunately kind of coded myself into a corner here, but I'm going to see what I can do. 
+- Potentially rework functions to not do polymorphism, instead just append extensions to function names so multiple of the same function can exist with different parameters to avoid the Object stuff
+
+### next steps
+- Im gonna sink in a good amount of time into this because i dont want to add too much on top of this messy stuff, just to make it impossible to fix it later
+- It is probably better anyway, because while I do understand Generalize and Instantiate and Substitute mostly, it still is kind of confusing to me and is not necessarily authentic to my own conceptual understanding

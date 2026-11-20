@@ -89,7 +89,7 @@ public class CodeGenerator {
     public void generateGlobalVariable(VarDeclNode node, StringBuilder buffer){
         String javaType = typeString(currentEnv.lookup(node.identifier.lexeme));
         if (node.initializer == null){
-            buffer.append("\tpublic static " + javaType + node.identifier.lexeme + ";\n");
+            buffer.append("\tpublic static " + javaType + " " + node.identifier.lexeme + ";\n");
         } else{
             String expressionStr = generateExpression(node.initializer);
             buffer.append("\tpublic static " + javaType + " " + node.identifier.lexeme + " = " + expressionStr + ";\n");
@@ -256,7 +256,7 @@ public class CodeGenerator {
 
             VariableNode localExpr = (VariableNode) expr;
             if (localExpr.identifier.lexeme.equals("e")){
-                return "Math.e";
+                return "Math.E";
             } else if (localExpr.identifier.lexeme.equals("pi")){
                 return "Math.PI";
             }
@@ -278,12 +278,33 @@ public class CodeGenerator {
                 
                 VariableNode name = (VariableNode) localExpr.name;
                 // explicitly printing names for built=in functions, like print() -> System.out.println() or sin() -> Math.sin()
+
+                if (localExpr.inferredType instanceof TypeVariable){
+
+                }
+
+                if (List.of("sin", "cos", "tan", "ln", "log", "arcsin", "arccos", "arctan").contains(name.identifier.lexeme)){
+                    argsJoined = "((Number)(" + argsJoined +")).doubleValue()";
+                }
+
                 if (name.identifier.lexeme.equals("print")){
                     return "System.out.println(" + argsJoined + ")";
                 } else if (name.identifier.lexeme.equals("sin")){
                     return "Math.sin(" + argsJoined + ")";
                 } else if (name.identifier.lexeme.equals("cos")){
                     return "Math.cos(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("tan")){
+                    return "Math.tan(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("ln")){
+                    return "Math.log(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("log")){
+                    return "Math.log10(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("arcsin")){
+                    return "Math.asin(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("arccos")){
+                    return "Math.acos(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("arctan")){
+                    return "Math.atan(" + argsJoined + ")";
                 }
                 
                 
@@ -299,9 +320,53 @@ public class CodeGenerator {
         } else if (expr instanceof BinaryNode){
             BinaryNode localExpr = (BinaryNode) expr;
     
+            
+
             String leftStr = generateExpression(localExpr.left);
             String rightStr = generateExpression(localExpr.right);
             String opStr = localExpr.operator.lexeme;
+
+            if (localExpr.leftType instanceof ListType && localExpr.rightType instanceof ListType){
+                if (opStr.equals("+")){
+                    return "ChppArray.addElements(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("-")){
+                    return "ChppArray.subElements(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("*")){
+                    return "ChppArray.multElements(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("/")){
+                    return "ChppArray.divElements(" + leftStr + ", " + rightStr + ")";
+                }
+            } else if (localExpr.leftType instanceof ListType || localExpr.rightType instanceof ListType) {
+                if (opStr.equals("+")){
+                    return "ChppArray.addScalar(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("-")){
+                    return "ChppArray.subScalar(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("*")){
+                    return "ChppArray.multiplyScalar(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("/")){
+                    return "ChppArray.divScalar(" + leftStr + ", " + rightStr + ")";
+                }
+            } else if (localExpr.leftType instanceof TypeVariable || localExpr.rightType instanceof TypeVariable) {
+                if (opStr.equals("+")){
+                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.add(" + leftStr + ", " + rightStr + "))";
+                } else if (opStr.equals("-")){
+                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.sub(" + leftStr + ", " + rightStr + "))";
+                } else if (opStr.equals("*")){
+                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.mult(" + leftStr + ", " + rightStr + "))";
+                } else if (opStr.equals("/")){
+                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.div(" + leftStr + ", " + rightStr + "))";
+                } else if (List.of("<", ">", ">=", "<=", "%").contains(opStr)){
+                    return "((Number)(" + leftStr + ")).doubleValue()" + opStr + "((Number)" + rightStr + ").doubleValue()";
+                } else if (opStr.equals("==")){
+                    return "java.util.Objects.equals(" + leftStr + ", " + rightStr + ")";
+                } else if (opStr.equals("!=")){
+                    return "!java.util.Objects.equals(" + leftStr + ", " + rightStr + ")";
+                }
+            }
+
+            if (localExpr.operator.lexeme.equals("^")){
+                return "Math.pow(((Number)" + leftStr + ").doubleValue(), ((Number)" + rightStr + ").doubleValue())";
+            }
             return leftStr + " " + opStr + " " + rightStr;
         } else if (expr instanceof AssignmentNode){
             AssignmentNode localExpr = (AssignmentNode) expr;
@@ -313,13 +378,29 @@ public class CodeGenerator {
         } else if (expr instanceof UnaryNode){
             UnaryNode localExpr = (UnaryNode) expr;
 
+
             String rightStr = generateExpression(localExpr.right);
+            if (localExpr.operator.lexeme.equals("-")){
+                return "((" + typeString(localExpr.inferredType)  + ")" + "ChppMath.negate(" + rightStr + "))";
+            }
             return localExpr.operator.lexeme + rightStr;
         } else if (expr instanceof GroupingNode){
             GroupingNode localExpr = (GroupingNode) expr;
 
             String exprStr = generateExpression(localExpr.expression);
             return "(" + exprStr + ")";
+        } else if (expr instanceof ListNode localExpr){
+            
+            List<String> args = new ArrayList<>();
+            for (Expr argument : localExpr.list){
+                args.add(generateExpression(argument));
+            }
+
+            String argsJoined = String.join(", ", args);
+
+            return "new ChppArray(" + argsJoined + ")";
+        } else if (expr instanceof IndexNode localExpr){
+            return "((" + typeString(localExpr.inferredType) + ")" + generateExpression(localExpr.target) + ".get(" + generateExpression(localExpr.index) + "))";
         }
 
 
@@ -343,11 +424,9 @@ public class CodeGenerator {
         } else if (type == PrimitiveType.DOUBLE){
             return "double";
         } else if (type instanceof TypeVariable typeVar){
-            if (typeVar.constraint == Constraint.NUMBER){
-                return "int";
-            } if (typeVar.constraint == Constraint.ADDABLE){
-                return "int";
-            }
+            return "Object";
+        } else if (type instanceof ListType){
+            return "ChppArray";
         }
         return "Object";
     }
