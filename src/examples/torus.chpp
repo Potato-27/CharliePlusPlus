@@ -192,7 +192,7 @@ fun unpackRgb(packed) {
     while ir + 1 <= r { ir = ir + 1 }
     while ig + 1 <= g { ig = ig + 1 }
     while ib + 1 <= b { ib = ib + 1 }
-    return "" + ir + ";" + ig + ";" + ib
+    return "" + int(ir) + ";" + int(ig) + ";" + int(ib)
 }
 
 // 8. Traces primary ray + 1 bounce reflection ray and returns ANSI "r;g;b"
@@ -269,7 +269,7 @@ fun tracePixel(u, v) {
     while ig + 1 <= finalG { ig = ig + 1 }
     while ib + 1 <= finalB { ib = ib + 1 }
 
-    return "" + ir + ";" + ig + ";" + ib
+    return "" + int(ir) + ";" + int(ig) + ";" + int(ib)
 }
 
 fun main() {

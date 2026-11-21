@@ -40,7 +40,7 @@ public class Compiler {
             TypeResolver resolver = new TypeResolver(parsedCode);
             resolver.resolve();
 
-            CodeGenerator generator = new CodeGenerator(parsedCode, resolver.environment);
+            CodeGenerator generator = new CodeGenerator(parsedCode, resolver.environment, resolver);
             generator.generate(); 
 
         } catch (IOException e) {

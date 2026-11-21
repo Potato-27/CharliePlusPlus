@@ -12,11 +12,13 @@ public class CodeGenerator {
     public StringBuilder javaCode = null;
     private final List<Stmt> programAst;
     private Environment currentEnv; 
+    private TypeResolver resolver;
 
-    public CodeGenerator(List<Stmt> programAst, Environment globalEnv){
+    public CodeGenerator(List<Stmt> programAst, Environment globalEnv, TypeResolver resolver){
         javaCode = new StringBuilder();
         this.programAst = programAst;
         this.currentEnv = globalEnv;
+        this.resolver = resolver;
     }
 
     // public method called on the instantiated object that manages the final generation of the java file, iterating through each node from the parser and calling the according helper method
@@ -24,6 +26,7 @@ public class CodeGenerator {
     public void generate() {
         javaCode.append("public class Main {\n");
 
+        javaCode.append("\tpublic static final java.util.Scanner _in = new java.util.Scanner(System.in);");
         List<String> generatedFiles = new ArrayList<>();
         generatedFiles.add("Main.java");
 
@@ -124,9 +127,8 @@ public class CodeGenerator {
         if (node.name.lexeme.equals("main")){
             javaCode.append("\tpublic static void main(String[] args)");
             generateStatement(node.block, javaCode, false);
-        } else {
-            Scheme scheme = (Scheme) currentEnv.lookup(node.name.lexeme);
-            FunctionType funType = (FunctionType) scheme.type;
+        } else { 
+            FunctionType funType = (FunctionType) currentEnv.lookup(node.name.lexeme);;
             String funTypeStr = typeString(funType.returnType);
 
             javaCode.append("public static " + funTypeStr + " " + node.name.lexeme + "(");
@@ -243,8 +245,8 @@ public class CodeGenerator {
         if (expr instanceof LiteralNode){
             
             LiteralNode localExpr = (LiteralNode) expr;
-            if (localExpr.value instanceof Integer || localExpr.value instanceof Double){
-                return localExpr.value.toString();
+            if (localExpr.value instanceof Number num){
+                return String.valueOf(num.doubleValue());
             } else if (localExpr.value instanceof String){
                 return "\"" + localExpr.value + "\"";
             } else if (localExpr.value instanceof Boolean){
@@ -279,14 +281,6 @@ public class CodeGenerator {
                 VariableNode name = (VariableNode) localExpr.name;
                 // explicitly printing names for built=in functions, like print() -> System.out.println() or sin() -> Math.sin()
 
-                if (localExpr.inferredType instanceof TypeVariable){
-
-                }
-
-                if (List.of("sin", "cos", "tan", "ln", "log", "arcsin", "arccos", "arctan").contains(name.identifier.lexeme)){
-                    argsJoined = "((Number)(" + argsJoined +")).doubleValue()";
-                }
-
                 if (name.identifier.lexeme.equals("print")){
                     return "System.out.println(" + argsJoined + ")";
                 } else if (name.identifier.lexeme.equals("sin")){
@@ -305,12 +299,20 @@ public class CodeGenerator {
                     return "Math.acos(" + argsJoined + ")";
                 } else if (name.identifier.lexeme.equals("arctan")){
                     return "Math.atan(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("int")){
+                    return "((int)" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("floor")){
+                    return "Math.floor(" + argsJoined + ")";
+                } else if (name.identifier.lexeme.equals("inputString")){
+                    return "_in.nextLine()";
+                } else if (name.identifier.lexeme.equals("inputNum")){
+                    // circumvents java nextLine() issue
+                    return "Double.parseDouble(_in.nextLine())";
                 }
                 
                 
                 else {
-                    Scheme scheme = (Scheme) currentEnv.lookup(name.identifier.lexeme);
-                    FunctionType funType = (FunctionType) scheme.type;
+                    FunctionType funType = (FunctionType) currentEnv.lookup(name.identifier.lexeme);
                     if (typeString(funType.returnType).equals("Object") && !typeString(localExpr.inferredType).equals("Object")  && !typeString(localExpr.inferredType).equals("void")){
                         return "(("+ typeString(localExpr.inferredType) + ") " + name.identifier.lexeme + "(" + argsJoined + "))";
                     }
@@ -326,7 +328,7 @@ public class CodeGenerator {
             String rightStr = generateExpression(localExpr.right);
             String opStr = localExpr.operator.lexeme;
 
-            if (localExpr.leftType instanceof ListType && localExpr.rightType instanceof ListType){
+            if (resolver.prune(localExpr.leftType) instanceof ListType && resolver.prune(localExpr.rightType) instanceof ListType){
                 if (opStr.equals("+")){
                     return "ChppArray.addElements(" + leftStr + ", " + rightStr + ")";
                 } else if (opStr.equals("-")){
@@ -336,7 +338,7 @@ public class CodeGenerator {
                 } else if (opStr.equals("/")){
                     return "ChppArray.divElements(" + leftStr + ", " + rightStr + ")";
                 }
-            } else if (localExpr.leftType instanceof ListType || localExpr.rightType instanceof ListType) {
+            } else if (resolver.prune(localExpr.leftType) instanceof ListType || resolver.prune(localExpr.rightType) instanceof ListType) {
                 if (opStr.equals("+")){
                     return "ChppArray.addScalar(" + leftStr + ", " + rightStr + ")";
                 } else if (opStr.equals("-")){
@@ -346,26 +348,10 @@ public class CodeGenerator {
                 } else if (opStr.equals("/")){
                     return "ChppArray.divScalar(" + leftStr + ", " + rightStr + ")";
                 }
-            } else if (localExpr.leftType instanceof TypeVariable || localExpr.rightType instanceof TypeVariable) {
-                if (opStr.equals("+")){
-                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.add(" + leftStr + ", " + rightStr + "))";
-                } else if (opStr.equals("-")){
-                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.sub(" + leftStr + ", " + rightStr + "))";
-                } else if (opStr.equals("*")){
-                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.mult(" + leftStr + ", " + rightStr + "))";
-                } else if (opStr.equals("/")){
-                    return "((" + typeString(localExpr.inferredType) + ")ChppMath.div(" + leftStr + ", " + rightStr + "))";
-                } else if (List.of("<", ">", ">=", "<=", "%").contains(opStr)){
-                    return "((Number)(" + leftStr + ")).doubleValue()" + opStr + "((Number)" + rightStr + ").doubleValue()";
-                } else if (opStr.equals("==")){
-                    return "java.util.Objects.equals(" + leftStr + ", " + rightStr + ")";
-                } else if (opStr.equals("!=")){
-                    return "!java.util.Objects.equals(" + leftStr + ", " + rightStr + ")";
-                }
             }
 
             if (localExpr.operator.lexeme.equals("^")){
-                return "Math.pow(((Number)" + leftStr + ").doubleValue(), ((Number)" + rightStr + ").doubleValue())";
+                return "Math.pow(" + leftStr + ", " + rightStr + ")";
             }
             return leftStr + " " + opStr + " " + rightStr;
         } else if (expr instanceof AssignmentNode){
@@ -380,8 +366,8 @@ public class CodeGenerator {
 
 
             String rightStr = generateExpression(localExpr.right);
-            if (localExpr.operator.lexeme.equals("-")){
-                return "((" + typeString(localExpr.inferredType)  + ")" + "ChppMath.negate(" + rightStr + "))";
+            if (localExpr.inferredType instanceof ListType){
+                return "ChppArray.negate(" + rightStr + ")";
             }
             return localExpr.operator.lexeme + rightStr;
         } else if (expr instanceof GroupingNode){
@@ -400,7 +386,7 @@ public class CodeGenerator {
 
             return "new ChppArray(" + argsJoined + ")";
         } else if (expr instanceof IndexNode localExpr){
-            return "((" + typeString(localExpr.inferredType) + ")" + generateExpression(localExpr.target) + ".get(" + generateExpression(localExpr.index) + "))";
+            return "((" + typeString(localExpr.inferredType) + ")" + generateExpression(localExpr.target) + ".get((int)" + generateExpression(localExpr.index) + "))";
         }
 
 
@@ -410,21 +396,19 @@ public class CodeGenerator {
 
     // helper method that takes Type type and returns the string version of that type, applicable for functions and varaible declarations
     private String typeString(Type type){
-        
-        if (type instanceof Scheme scheme){
-            return typeString(scheme.type);
-        } else if (type == PrimitiveType.INT){
-            return "int";
+        type = resolver.prune(type);
+        if (type == PrimitiveType.NUMBER){
+            return "double";
         } else if (type == PrimitiveType.BOOLEAN){
             return "boolean";
         } else if (type == PrimitiveType.STRING){
             return "String";
         } else if (type == PrimitiveType.VOID){
             return "void";
-        } else if (type == PrimitiveType.DOUBLE){
-            return "double";
         } else if (type instanceof TypeVariable typeVar){
-            return "Object";
+            if (typeVar.constraint != Constraint.NONE){
+                return "double";
+            }
         } else if (type instanceof ListType){
             return "ChppArray";
         }

@@ -122,3 +122,23 @@ Recently schoolwork has been pretty draining and it's been eating all of my free
 ### next steps
 - Im gonna sink in a good amount of time into this because i dont want to add too much on top of this messy stuff, just to make it impossible to fix it later
 - It is probably better anyway, because while I do understand Generalize and Instantiate and Substitute mostly, it still is kind of confusing to me and is not necessarily authentic to my own conceptual understanding
+
+## Entry 9 Cleanup done
+
+### what's new
+- **NUMBER:** integers and doubles are now completely gone from everything, and some minor changes to make up for that like built in `int()` and `floor()` functions, and automatic casting for list indexing
+- **Bye bye polymorphism:** probably won't be missed
+- **Input:** I decided that just having one `input()` function would be way too annoying and terrible and awful to make so now there is `inputString()` and `inputNum()`, which were super easy to implement
+
+### update
+- after adding monomorphism, hopefully the rate in which actual new stuff is added can increase, because from then on the TypeResolver will at last not need major changes, and also it's already so much simpler than it was before which is fantastic
+- I have a more clear roadmap ahead now, chained indexing/list value assignment -> monomorphism -> for loops -> implicit multiplication -> functions as parameters -> import framework, so I have some much-needed structure for my aimless meandering (using some big words here)
+- I've been mega sleep deprived so that roadmap includes getting more sleep (2AM as of writing this btw)
+
+### next steps
+- monomorphism: allowing for functions to be called with multiple different parameters, simulating a java `Object` parameter, by cloning the function multiple times with new parameters types
+- for loops: I am not 100% sure on the syntax yet, but I'm thinking something like `for n in 1...10 where n % 2 == 0 {}` or similar, replacing `1...10` with a list name or list literal if desired
+- implicit multiplication is fairly simple just allowing expressions like `x(x+2)` to be valid, only tricky part will be differentiating between function calls like `f(x)` and making sure that doesn't become `f * (x)`
+- functions as parameters - I've never even done this in normal java so I have to learn what I'm even going to compile to first
+- import framework = this is the big fun part where I actually get to code in my language to make actual stuff so I'm exuberant for that
+- I havent gone through and organized my code and wrote new clean comments, and also I haven't updated the big README, so I should probably do that soon

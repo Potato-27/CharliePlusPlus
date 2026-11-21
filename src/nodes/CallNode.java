@@ -6,7 +6,8 @@ import environment.*;
 public class CallNode implements Expr {
     public final Expr name;
     public final List<Expr> arguments;
-    public Type inferredType = PrimitiveType.VOID;
+    public Type inferredType;
+
     
     public CallNode(Expr name, List<Expr> arguments){
         this.name = name;

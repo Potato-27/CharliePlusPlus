@@ -1,5 +1,5 @@
 package environment;
 
 public enum Constraint {
-    NONE, NUMBER, ADDABLE
+    NONE, ADDABLE, ARITHMETIC
 }

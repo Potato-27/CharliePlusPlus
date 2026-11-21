@@ -219,6 +219,8 @@ public class ChppArray {
         return newArr;
     }
 
+
+
     @Override
     public String toString(){
         String returnStr = "[";
@@ -231,6 +233,10 @@ public class ChppArray {
         }
         returnStr += "]";
         return returnStr;
+    }
+
+    public static ChppArray negate(ChppArray a){
+        return multiplyScalar(a, -1);
     }
 
 

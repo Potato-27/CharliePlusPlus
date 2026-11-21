@@ -384,35 +384,36 @@ public class Parser {
     // parses expressions to check whether it is a function call and creating and returning a CallNode accordingly, otherwise returns primary()
     public Expr call(){
         Expr expr = primary();
-        if (match(TokenType.LEFT_PAREN)){
-            List<Expr> arguments = new ArrayList<>();
-            while(!check(TokenType.RIGHT_PAREN)){
-                if(match(TokenType.COMMA)){
-                    continue;
-                } else {
-                    arguments.add(expression());
+    
+        while (check(TokenType.LEFT_BRACK) || check(TokenType.LEFT_PAREN)){
+            if (match(TokenType.LEFT_PAREN)){
+                List<Expr> arguments = new ArrayList<>();
+                while(!check(TokenType.RIGHT_PAREN)){
+                    if(match(TokenType.COMMA)){
+                        continue;
+                    } else {
+                        arguments.add(expression());
+                    }
                 }
+
+                if (match(TokenType.RIGHT_PAREN)){
+                    expr = new CallNode(expr, arguments);
+                }else {
+                    System.err.println("Temp error message call() (right paren)");
+                    return null;
+                }
+
+            } else if (match(TokenType.LEFT_BRACK)){
+                Expr index = expression();
+
+                if (match(TokenType.RIGHT_BRACK)){
+                    expr = new IndexNode(expr, index);
+                }else {
+                    System.err.println("Temp error message call() (right paren)");
+                    return null;
+                }
+
             }
-
-            if (match(TokenType.RIGHT_PAREN)){
-                expr = new CallNode(expr, arguments);
-                return expr;
-            }else {
-                System.err.println("Temp error message call() (right paren)");
-                return null;
-            }
-
-        } else if (match(TokenType.LEFT_BRACK)){
-            Expr index = expression();
-
-            if (match(TokenType.RIGHT_BRACK)){
-                expr = new IndexNode(expr, index);
-                return expr;
-            }else {
-                System.err.println("Temp error message call() (right paren)");
-                return null;
-            }
-
         }
         return expr;
 
