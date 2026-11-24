@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "RunCharlie",
+            "type": "shell",
+            "command": "javac -d build (Get-ChildItem -Recurse -Filter *.java src).FullName; if ($?) { java -cp build Compiler '${file}' }",
+            "group": { "kind": "build", "isDefault": true }
+        }
+    ],
+    "java.project.sourcePaths": [
+        "src",
+        "runtime"
+    ]
+}

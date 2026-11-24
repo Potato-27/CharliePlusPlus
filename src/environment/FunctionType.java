@@ -4,6 +4,7 @@ import java.util.List;
 public class FunctionType implements Type {
     public List<Type> args;
     public Type returnType;
+    public String template = "";
 
     public FunctionType(List<Type> args, Type returnType){
         this.args = args;

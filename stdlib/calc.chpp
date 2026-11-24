@@ -1,0 +1,25 @@
+
+fun derive(f, x) {
+    let h = 0.00001
+    let left = f(x - h)
+    let right = f(x + h)
+
+    // apparently a number is not equal to itself if its not a number thats pretty cool
+    if left != left {
+        let center = f(x)
+        if center != center | right != right {
+            return center 
+        }
+        return (right - center) / h
+    }
+
+    if right != right {
+        let center = f(x)
+        if center != center {
+            return center
+        }
+        return (center - left) / h
+    }
+
+    return (right - left) / (2h)
+}

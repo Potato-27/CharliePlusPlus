@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import environment.*;
 
 public class CallNode implements Expr {
-    public final Expr name;
+    public Expr name;
     public final List<Expr> arguments;
     public Type inferredType;
+    public boolean isImplicitMult = false;
+    public boolean isInterfaceCall = false;
 
     
     public CallNode(Expr name, List<Expr> arguments){

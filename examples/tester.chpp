@@ -1,0 +1,76 @@
+import calc
+
+// 1. Implicit Multiplication & Single-Line Math Functions
+fun polynomial(x) = 3x^2 - 4x + 7
+fun wave(x) = sin(2x)cos(x)
+fun square(x) = x^2
+
+// 2. Single-Line Piecewise Functions
+fun relu(x) = if x < 0 { 0 } else { x }
+fun classifyScore(s) = if s >= 90 { "A" } else if s >= 80 { "B" } else if s >= 70 { "C" } else { "Review" }
+
+// 3. Polymorphic Monomorphized Function (Numbers, Strings, and Lists)
+fun doubleValue(v) = v + v
+
+// 4. Higher-Order Function + Loop Numerical Integrator (Riemann Sum)
+fun integrate(f, a, b, steps) {
+    let dx = (b - a) / steps
+    let total = 0.0
+    for i in 0...steps - 1 {
+        let mid = a + (i + 0.5) * dx
+        total = total + f(mid) * dx
+    }
+    return total
+}
+
+// 5. Visual Rainbow Cosine Banner using ANSI True-Color + int() Print Formatting
+fun renderWaveBanner() {
+    let esc = "\u001B"
+    let bar = ""
+    for i in 0...59 {
+        let t = i * 0.14
+        let r = 127.5 + 127.5 * sin(t)
+        let g = 127.5 + 127.5 * sin(t + 2.0944)
+        let b = 127.5 + 127.5 * sin(t + 4.1888)
+        bar = bar + esc + "[38;2;" + int(r) + ";" + int(g) + ";" + int(b) + "m█"
+    }
+    print(bar + esc + "[0m")
+}
+
+fun main() {
+    renderWaveBanner()
+    print("=== CHARLIE++ FEATURE SHOWCASE ===")
+
+    // Math & Implicit Multiplication
+    print("polynomial(3) = " + polynomial(3))
+    print("wave(pi / 4)  = " + wave(pi / 4))
+    print("relu(-5)      = " + relu(-5) + ", relu(8) = " + relu(8))
+
+    // Standard Library Import + Higher-Order Numerical Derivative
+    print("d/dx [3x^2 - 4x + 7] at x=3  -> " + calc.derive(polynomial, 3))
+    print("Integral of x^2 from 0 to 3  -> " + integrate(square, 0, 3, 1000))
+
+    // Polymorphic Monomorphization across Types
+    print("doubleValue(21)      = " + doubleValue(21))
+    print("doubleValue('Chpp!') = " + doubleValue("Chpp!"))
+
+    let i0 = 0
+    let i1 = 1
+    let i2 = 2
+    let vec = [2, 4, 6]
+    let doubledVec = doubleValue(vec)
+    print("doubleValue([2, 4, 6]) = [" + int(doubledVec[i0]) + ", " + int(doubledVec[i1]) + ", " + int(doubledVec[i2]) + "]")
+
+    // Lists, Chained Indexing, Index Mutation & `where` Filtering
+    let matrix = [[10, 20], [30, 40]]
+    matrix[i1][i0] = 99
+    print("Mutated matrix[1][0] = " + int(matrix[i1][i0]))
+
+    let scores = [72, 88, 95, 64, 91, 85]
+    print("Honors Scores (>= 85):")
+    for s in scores where s >= 85 {
+        print("  Score " + int(s) + " -> Grade " + classifyScore(s))
+    }
+
+    renderWaveBanner()
+}

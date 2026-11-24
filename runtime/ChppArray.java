@@ -1,7 +1,8 @@
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Iterator;
 
-public class ChppArray {
+public class ChppArray implements Iterable<Object> {
     public List<Object> list;
 
     public ChppArray(Object... objects){
@@ -22,12 +23,13 @@ public class ChppArray {
     }
 
     // changing the value of a given index
-    public void set(int index, Object object){
+    public Object set(int index, Object object){
         if (index < 0) {
             list.set(index + list.size(), object); 
-            return;
+            return object;
         }
         list.set(index, object);
+        return object;
     }
 
     // adding elements to the list
@@ -219,6 +221,9 @@ public class ChppArray {
         return newArr;
     }
 
+    public static ChppArray negate(ChppArray a){
+        return multiplyScalar(a, -1);
+    }
 
 
     @Override
@@ -235,9 +240,12 @@ public class ChppArray {
         return returnStr;
     }
 
-    public static ChppArray negate(ChppArray a){
-        return multiplyScalar(a, -1);
+    @Override
+    public Iterator<Object> iterator() {
+        return list.iterator();
     }
+
+    
 
 
 }

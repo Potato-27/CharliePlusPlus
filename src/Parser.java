@@ -2,11 +2,16 @@ import lexer.*;
 import nodes.*;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Parser {
-    public final List<Token> tokens;
+    public List<Token> tokens;
+    private Set<String> funNames = new HashSet<>(Set.of("print", "inputString", "inputNum", "ln", "log", 
+        "sin", "cos", "tan", "arcsin", "arccos", "arctan", "int", "floor"
+    ));
 
-    public int current = 0;
+    private int current = 0;
     
     public Parser(List<Token> tokens){
         this.tokens = tokens;
@@ -14,6 +19,36 @@ public class Parser {
 
     // primary method called on the instantiated object, returning the list of nodes in which the file has been parsed to, iterates through the tokens from the lexer
     public List<Stmt> parse(){
+        for (int i = 0; i < tokens.size(); i++){
+            if (tokens.get(i).type == TokenType.FUNCTION && i + 1 < tokens.size()){
+                funNames.add(tokens.get(i+1).lexeme);
+            }
+        }
+        List<Token> newTokens = new ArrayList<>();
+
+
+        for (int i = 0; i < tokens.size(); i++){
+            newTokens.add(tokens.get(i));
+            if (i + 1 < tokens.size()){
+                if (tokens.get(i).type == TokenType.NUMBER && tokens.get(i+1).type == TokenType.LEFT_PAREN){
+                    newTokens.add(new Token("*", TokenType.STAR, null, tokens.get(i).line));
+                }
+                //if (tokens.get(i).type == TokenType.IDENTIFIER && tokens.get(i+1).type == TokenType.LEFT_PAREN && !funNames.contains(tokens.get(i).lexeme)){
+                //    newTokens.add(new Token("*", TokenType.STAR, null, tokens.get(i).line));
+                //}
+                if (tokens.get(i).type == TokenType.RIGHT_PAREN && (tokens.get(i+1).type == TokenType.NUMBER || tokens.get(i+1).type == TokenType.IDENTIFIER || tokens.get(i+1).type == TokenType.LEFT_PAREN)){
+                    newTokens.add(new Token("*", TokenType.STAR, null, tokens.get(i).line));
+                }
+                if (tokens.get(i).type == TokenType.NUMBER && tokens.get(i+1).type == TokenType.IDENTIFIER){
+                    newTokens.add(new Token("*", TokenType.STAR, null, tokens.get(i).line));
+                }
+            }
+            
+        }
+        tokens = newTokens;
+
+
+        
         List<Stmt> statements = new ArrayList<>();
 
         while (peek().type != TokenType.EOF){
@@ -29,12 +64,17 @@ public class Parser {
 
     // main directing method, diverts to appropriate method depending on the leading keyword of a statement, if not a declaration statement then calling and returning statement()
     public Stmt declaration(){
-        if (match(TokenType.KEYWORD_LET)){
+        if (match(TokenType.LET)){
             return varDeclaration();
         } else if (match(TokenType.FUNCTION)){
             return funDeclaration();
-        } else if (match(TokenType.CLASS)){
-            return classDeclaration();
+        } else if (match(TokenType.IMPORT)){
+            if (match(TokenType.IDENTIFIER)){
+                return new ImportNode(previous());
+            } else {
+                System.err.println("Expected identifier after import on line " + tokens.get(current).line);
+                return null;
+            }
         } else {
             return statement();
         }
@@ -124,6 +164,7 @@ public class Parser {
         return new FunDeclNode(name, block, parameters);
     }
 
+    // parses piecewise single-line functions declarations 
     public Stmt piecewise(){
 
         Stmt ifBlock = null;
@@ -174,48 +215,6 @@ public class Parser {
 
     }
 
-    public Stmt classDeclaration(){
-        Token name = null;
-        List<VarDeclNode> fields = new ArrayList<>();
-        List<FunDeclNode> methods = new ArrayList<>();
-
-        if (match(TokenType.IDENTIFIER)){
-            name = previous();
-        } else {
-            System.err.println("Temp error message classDeclaration() (name)");
-            return null;
-        }
-
-        if (check(TokenType.LEFT_BRACE)){
-            advance();
-        } else {
-            System.err.println("Temp error message classDeclaration() (left brace)");
-                return null;
-        }
-
-        while (!check(TokenType.RIGHT_BRACE) && !check(TokenType.EOF)){
-            if (match(TokenType.NEWLINE)){
-                continue;
-            } else if (match(TokenType.KEYWORD_LET)){
-                fields.add((VarDeclNode) varDeclaration());
-            } else if (match(TokenType.FUNCTION)){
-                methods.add((FunDeclNode) funDeclaration());
-            } else {
-                System.err.println("Temp error message classDeclaration() (name)");
-                return null;
-            }
-        }
-
-        if (check(TokenType.RIGHT_BRACE)){
-            advance();
-        } else {
-            System.err.println("Temp error message classDeclaration() (right brace)");
-                return null;
-        }
-
-        return new ClassDeclNode(name, fields, methods);
-    }
-
     // checks whether the current token is a while or if keyword and accordingly returns a WhileNode or IfNode, otherwise calls expression() and returns an ExpressionStatementNode
     public Stmt statement(){
         if (match(TokenType.IF)){
@@ -263,6 +262,28 @@ public class Parser {
                 return new ReturnNode(null);
             }
             return new ReturnNode(expression());
+        } else if (match(TokenType.FOR)){
+            
+            Stmt block = null;
+            Expr condition = null;
+            Token variable = advance();
+            if (!match(TokenType.IN)){
+                System.err.println("Missing token IN");
+                return null;
+            }
+            Expr range = expression();
+            if (match(TokenType.WHERE)){
+                condition = expression();
+            }
+
+            if (match(TokenType.LEFT_BRACE)){
+                block = block();
+            } else {
+                System.err.println("Temp error message statement() (FOR)");
+                return null;
+            }
+
+            return new ForNode(variable, range, (BlockNode)block, condition);
         } else {
             Stmt stmt = new ExpressionStatementNode(expression());
             if (match(TokenType.NEWLINE, TokenType.EOF) || check(TokenType.RIGHT_BRACE)){
@@ -288,7 +309,7 @@ public class Parser {
         if (match(TokenType.EQUAL)){
             Token modifier = previous();
             Expr value = expression();
-            if (expr instanceof VariableNode){
+            if (expr instanceof VariableNode || expr instanceof IndexNode){
                 return new AssignmentNode(expr, modifier, value);
             } else {
                 System.err.println("Temp error message assignment() (variable)");
@@ -322,11 +343,20 @@ public class Parser {
 
     // parses expressions for comparisons, returning a BinaryNode with a comparison operator, otherwise returns term()
     public Expr comparison(){
-        Expr expr = term();
+        Expr expr = range();
         while(match(TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.EQUAL_EQUAL, TokenType.LESS_EQUAL, TokenType.LESS, TokenType.NOT_EQUAL)){
             Token operator = previous();
-            Expr right = term();
+            Expr right = range();
             expr = new BinaryNode(expr, right, operator);
+        }
+        return expr;
+    }
+
+    public Expr range(){
+        Expr expr = term();
+        while(match(TokenType.ELLIPSES)){
+            Expr right = term();
+            expr = new RangeNode(expr, right);
         }
         return expr;
     }
@@ -413,8 +443,69 @@ public class Parser {
                     return null;
                 }
 
+            }if (peek().type == TokenType.DOT){
+                
+                Token packageVar = previous();
+                if (current+1 < tokens.size()){
+                    current++;
+                } else {
+                    System.err.println("Need expression after dot call");
+                }
+                if (match(TokenType.IDENTIFIER)){
+                    Token name = previous();
+                    if (match(TokenType.LEFT_PAREN)){
+                        List<Expr> arguments = new ArrayList<>();
+                        while(!check(TokenType.RIGHT_PAREN)){
+                            if(match(TokenType.COMMA)){
+                                continue;
+                            } else {
+                                arguments.add(expression());
+                            }
+                        }
+
+                        if (match(TokenType.RIGHT_PAREN)){
+                            expr = new VariableNode(new Token(packageVar.lexeme + "__" + name.lexeme, TokenType.IDENTIFIER, null, name.line));
+                            expr = new CallNode(expr, arguments);
+                        } else {
+                            System.err.println("Temp error message call() (right paren)");
+                            return null;
+                        }
+                    }
+                }
+                
             }
         }
+        if (peek().type == TokenType.DOT){
+                
+                Token packageVar = previous();
+                if (current+1 < tokens.size()){
+                    current++;
+                } else {
+                    System.err.println("Need expression after dot call");
+                }
+                if (match(TokenType.IDENTIFIER)){
+                    Token name = previous();
+                    if (match(TokenType.LEFT_PAREN)){
+                        List<Expr> arguments = new ArrayList<>();
+                        while(!check(TokenType.RIGHT_PAREN)){
+                            if(match(TokenType.COMMA)){
+                                continue;
+                            } else {
+                                arguments.add(expression());
+                            }
+                        }
+
+                        if (match(TokenType.RIGHT_PAREN)){
+                            expr = new VariableNode(new Token(packageVar.lexeme + "__" + name.lexeme, TokenType.IDENTIFIER, null, name.line));
+                            expr = new CallNode(expr, arguments);
+                        } else {
+                            System.err.println("Temp error message call() (right paren)");
+                            return null;
+                        }
+                    }
+                }
+                
+            }
         return expr;
 
     }

@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class FunDeclNode implements Stmt {
-    public final Token name;
+    public Token name;
     public final List<Token> parameters;
     public final BlockNode block;
     

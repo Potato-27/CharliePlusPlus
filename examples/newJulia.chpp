@@ -1,0 +1,46 @@
+fun juliaMap(z, c) {
+    let re = z[0]^2 - z[1]^2 + c[0]
+    let im = 2 * z[0] * z[1] + c[1]
+    return [re, im]
+}
+
+fun rainbowRgb(t) {
+    let r = int(127.5 + 127.5 * sin(t))
+    let g = int(127.5 + 127.5 * sin(t + 2.0944))
+    let b = int(127.5 + 127.5 * sin(t + 4.1888))
+    return "" + int(r) + ";" + int(g) + ";" + int(b)
+}
+
+fun juliaColor(x, y, stepFn, c) {
+    let z = [x, y]
+    for iter in 1...80 {
+        z = stepFn(z, c)
+        let mag2 = z[0]^2 + z[1]^2
+        if mag2 > 16.0 {
+            let smooth = iter - ln(ln(mag2) / 2.0) / ln(2.0)
+            return rainbowRgb(smooth * 0.28 + 1.2)
+        }
+    }
+    return "10;10;18"
+}
+
+fun renderRainbowJulia(stepFn, c) {
+    let esc = "\u001B"
+    for py in 0...54 {
+        let y = -1.15 + (py * 0.042)
+        let row = ""
+        for px in 0...159 {
+            let x = -1.75 + (px * 0.022)
+            let topRgb = juliaColor(x, y, stepFn, c)
+            let botRgb = juliaColor(x, y + 0.021, stepFn, c)
+            row = row + esc + "[38;2;" + topRgb + "m" + esc + "[48;2;" + botRgb + "m▀"
+        }
+        row = row + esc + "[0m"
+        print(row)
+    }
+}
+
+fun main() {
+    let c = [-0.7269, 0.1889]
+    renderRainbowJulia(juliaMap, c)
+}

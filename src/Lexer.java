@@ -41,7 +41,6 @@ public class Lexer{
             case '[' -> addToken(TokenType.LEFT_BRACK);
             case ']' -> addToken(TokenType.RIGHT_BRACK);
             case ',' -> addToken(TokenType.COMMA);
-            case '.' -> addToken(TokenType.DOT);
             case '+' -> addToken(TokenType.PLUS);
             case '-' -> addToken(TokenType.MINUS);
             case '*' -> addToken(TokenType.STAR);
@@ -58,6 +57,16 @@ public class Lexer{
                     addToken(TokenType.SLASH);
                 }
             }
+            case '.' -> {
+                if (peek() == '.' && peekNext() == '.'){
+                    advance();
+                    advance();
+                    tokens.add(new Token(source.substring(start, current), TokenType.ELLIPSES, null, line));
+                } else {
+                    addToken(TokenType.DOT);
+                }
+            }
+
             case '|' -> tokens.add(new Token("||", TokenType.OR, null, line));
             case '&' -> tokens.add(new Token("&&", TokenType.AND, null, line));
             
@@ -114,8 +123,11 @@ public class Lexer{
             case "fun" -> tokens.add(new Token(temp, TokenType.FUNCTION, null, line));
             case "fayzan" -> tokens.add(new Token(temp, TokenType.FAYZAN, null, line));
             case "class" -> tokens.add(new Token(temp, TokenType.CLASS, null, line));
-            case "let" -> tokens.add(new Token(temp, TokenType.KEYWORD_LET, null, line));
+            case "let" -> tokens.add(new Token(temp, TokenType.LET, null, line));
             case "none" -> tokens.add(new Token(temp, TokenType.NULL, null, line));
+            case "in" -> tokens.add(new Token(temp, TokenType.IN, null, line));
+            case "where" -> tokens.add(new Token(temp, TokenType.WHERE, null, line));
+            case "import" -> tokens.add(new Token(temp, TokenType.IMPORT, null, line));
             // boolean literals
             case "true" -> tokens.add(new Token(temp, TokenType.BOOLEAN, true, line));
             case "false" -> tokens.add(new Token(temp, TokenType.BOOLEAN, false, line));
@@ -155,7 +167,7 @@ public class Lexer{
             advance();
         }
 
-        if (peek() == '.'){
+        if (peek() == '.' && peekNext() != '.'){
             advance();
             while (isNumber(peek())){
                 advance();
@@ -212,6 +224,14 @@ public class Lexer{
             return '\0';
         } else {
             return source.charAt(current);
+        }
+    }
+
+    private char peekNext(){
+        if (current+1 >= source.length()){
+            return '\0';
+        } else {
+            return source.charAt(current+1);
         }
     }
     

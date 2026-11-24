@@ -4,8 +4,11 @@ import java.util.List;
 import environment.*;
 
 import java.io.IOException;
+import java.io.File;
 import java.io.FileWriter;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 
 public class CodeGenerator {
@@ -13,6 +16,7 @@ public class CodeGenerator {
     private final List<Stmt> programAst;
     private Environment currentEnv; 
     private TypeResolver resolver;
+    private Map<String, FunctionType> functionalInterfaces = new LinkedHashMap<>();
 
     public CodeGenerator(List<Stmt> programAst, Environment globalEnv, TypeResolver resolver){
         javaCode = new StringBuilder();
@@ -24,7 +28,7 @@ public class CodeGenerator {
     // public method called on the instantiated object that manages the final generation of the java file, iterating through each node from the parser and calling the according helper method
     // after generating the files AI code automatically runs the main file created
     public void generate() {
-        javaCode.append("public class Main {\n");
+        //javaCode.append("public class Main {\n");
 
         javaCode.append("\tpublic static final java.util.Scanner _in = new java.util.Scanner(System.in);");
         List<String> generatedFiles = new ArrayList<>();
@@ -40,49 +44,52 @@ public class CodeGenerator {
 
         javaCode.append("}\n");
         
-        String finalJavaCode = javaCode.toString();
+        StringBuilder interfaceBuilder = new StringBuilder();
+        for (Map.Entry<String, FunctionType> entry : new ArrayList<>(functionalInterfaces.entrySet())){
+            FunctionType funType = entry.getValue();
 
-        try {
-            FileWriter fileWriter = new FileWriter("Main.java");
-            fileWriter.write(finalJavaCode);
-            fileWriter.close();
-        } catch (IOException e){
-            System.out.println("error");
-            e.printStackTrace();
-        }
+            interfaceBuilder.append("@FunctionalInterface\n");
+            interfaceBuilder.append("interface " + entry.getKey() + "{\n");
 
-        // AI code for automatically running the java files created START
-        try {
-            
-            // 1. Prepare the compilation command: ["javac", "Main.java", "Rocket.java", ...]
-            List<String> compileCommand = new ArrayList<>();
-            compileCommand.add("javac");
-            compileCommand.addAll(generatedFiles);
+            String returnType = typeString(funType.returnType);
 
-            // 2. Run the javac compiler process
-            Process compileProcess = new ProcessBuilder(compileCommand)
-                    .inheritIO() // Redirect error messages to your current terminal
-                    .start();
-            
-            int compileExitCode = compileProcess.waitFor();
-            if (compileExitCode != 0) {
-                System.err.println("Charlie++ Compilation Error: Java compiler failed.");
-                return;
+            String argsJoined = "";
+            if (funType.args.size() == 0){
+                argsJoined = "";
+            } else if (funType.args.size() == 1){
+                argsJoined = typeString(funType.args.get(0)) + " a0";
+            } else {
+                for (int i = 0; i < funType.args.size(); i++){
+                    if (i != funType.args.size()-1){
+                        argsJoined += typeString(funType.args.get(i)) + " a" + i + ", ";
+                    } else {
+                        argsJoined += typeString(funType.args.get(i)) + " a" + i;
+                    }
+                }
             }
 
+            interfaceBuilder.append("\t" + returnType + " apply(" + argsJoined + ");\n");
 
-            // 3. Run the compiled Java program: ["java", "Main"]
-            Process runProcess = new ProcessBuilder("java", "Main")
-                    .inheritIO() // Seamlessly maps the generated output straight to your screen!
-                    .start();
+            interfaceBuilder.append("}\n\n");
+        }
 
-            runProcess.waitFor();
+        String finalJavaCode = "public class Main {\n" + interfaceBuilder.toString() + javaCode.toString();
 
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Error automatically executing the compiled program.");
+        //AI generated code fo filewriting and boilerplate java plumbing I still don't know what's going on here
+        File baseDir = Compiler.getBaseDir();
+        File outDir = new File(baseDir, "out");
+        outDir.mkdirs();
+
+        File mainFile = new File(outDir, "Main.java");
+        try {
+            FileWriter fileWriter = new FileWriter(mainFile);
+            fileWriter.write(finalJavaCode);
+            fileWriter.close();
+        } catch (IOException e) {
+            System.err.println("Error writing Main.java");
             e.printStackTrace();
         }
-        // AI code for automatically running the java files created END
+
     }
 
 
@@ -237,6 +244,36 @@ public class CodeGenerator {
             } else {
                 buffer.append("\treturn " + generateExpression(returnNode.expression) + ";\n");
             }
+        } else if (node instanceof ForNode){
+            ForNode forNode = (ForNode) node;
+
+            if (forNode.iterable instanceof RangeNode range){
+                buffer.append("for (double " + forNode.variable.lexeme + " = " + generateExpression(range.left) + "; " + forNode.variable.lexeme + " <= " + generateExpression(range.right) + "; " + forNode.variable.lexeme + " = " + forNode.variable.lexeme + " + 1)");
+                if (forNode.condition != null){
+                    buffer.append("{\nif (" + generateExpression(forNode.condition) + ")");
+                    generateStatement(forNode.block, buffer, false);
+                    buffer.append("}");
+                }else {
+                    generateStatement(forNode.block, buffer, false);
+                }
+            } else {
+                
+                String type = typeString(forNode.block.localEnv.lookup(forNode.variable.lexeme));
+                String rawVar = "_raw_" + forNode.variable.lexeme;
+                buffer.append("for (Object " + rawVar + " : " + generateExpression(forNode.iterable) + "){\n");
+                buffer.append(type + " " + forNode.variable.lexeme + " = (" + type + ") " + rawVar + ";\n");
+                if (forNode.condition != null){
+                    Environment previousEnv = currentEnv;
+                    currentEnv = forNode.block.localEnv;
+                    buffer.append("{\nif (" + generateExpression(forNode.condition) + ")");
+                    currentEnv = previousEnv;
+                    generateStatement(forNode.block, buffer, false);
+                    buffer.append("}");
+                } else {
+                    generateStatement(forNode.block, buffer, false);
+                }
+                buffer.append("}");
+            }
         }
     }
 
@@ -257,6 +294,9 @@ public class CodeGenerator {
         } else if (expr instanceof VariableNode){
 
             VariableNode localExpr = (VariableNode) expr;
+            if (localExpr.inferredType instanceof FunctionType funType && !funType.template.isEmpty()){
+                return "Main::" + funType.template;
+            }
             if (localExpr.identifier.lexeme.equals("e")){
                 return "Math.E";
             } else if (localExpr.identifier.lexeme.equals("pi")){
@@ -274,9 +314,14 @@ public class CodeGenerator {
 
             String argsJoined = String.join(", ", args);
 
+            if (localExpr.isImplicitMult){
+                return generateExpression(localExpr.name) + " * (" + argsJoined + ")";
+            }
+            if (localExpr.isInterfaceCall){
+                return generateExpression(localExpr.name) + ".apply(" + argsJoined + ")";
+            }
+
             if (localExpr.name instanceof VariableNode){
-                
-                
                 
                 VariableNode name = (VariableNode) localExpr.name;
                 // explicitly printing names for built=in functions, like print() -> System.out.println() or sin() -> Math.sin()
@@ -319,6 +364,7 @@ public class CodeGenerator {
                     return name.identifier.lexeme + "(" + argsJoined + ")";
                 }
             }
+
         } else if (expr instanceof BinaryNode){
             BinaryNode localExpr = (BinaryNode) expr;
     
@@ -356,7 +402,9 @@ public class CodeGenerator {
             return leftStr + " " + opStr + " " + rightStr;
         } else if (expr instanceof AssignmentNode){
             AssignmentNode localExpr = (AssignmentNode) expr;
-
+            if (localExpr.variable instanceof IndexNode node){
+                return generateExpression(node.target) + ".set((int)" + generateExpression(node.index) + ", " + generateExpression(localExpr.value) + ")";
+            }
             String leftStr = generateExpression(localExpr.variable);
             String rightStr = generateExpression(localExpr.value);
             String opStr = localExpr.modifier.lexeme;
@@ -386,7 +434,7 @@ public class CodeGenerator {
 
             return "new ChppArray(" + argsJoined + ")";
         } else if (expr instanceof IndexNode localExpr){
-            return "((" + typeString(localExpr.inferredType) + ")" + generateExpression(localExpr.target) + ".get((int)" + generateExpression(localExpr.index) + "))";
+            return "((" + typeString(localExpr.inferredType) + ")" + generateExpression(localExpr.target) + ".get((int)(" + generateExpression(localExpr.index) + ")))";
         }
 
 
@@ -411,6 +459,11 @@ public class CodeGenerator {
             }
         } else if (type instanceof ListType){
             return "ChppArray";
+        } else if (type instanceof FunctionType funType){
+            String newName = "Fn_" + resolver.mangle(type);
+            functionalInterfaces.putIfAbsent(newName, funType);
+            return newName;
+
         }
         return "Object";
     }

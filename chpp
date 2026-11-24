@@ -1,0 +1,4 @@
+#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+[ ! -f "$DIR/build/Compiler.class" ] && javac -d "$DIR/build" $(find "$DIR/src" -name "*.java")
+java -cp "$DIR/build" Compiler "$1"
